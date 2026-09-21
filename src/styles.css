@@ -69,6 +69,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .search-field svg { flex: none; width: 1rem; color: var(--primary); }
 .search-field input { min-width: 0; height: 2rem; border: 0; padding: 0; box-shadow: none; background: transparent; }
 .search-field input:focus-visible { box-shadow: none; }
+/* Native date inputs paint their own calendar control at the far right of a
+   stretched field. Size the When cell to the value, and let the whole field
+   open the picker so we do not show two calendar icons. */
+.search-field input[type="date"] {
+  position: relative;
+  width: 9.75rem;
+  max-width: 100%;
+  flex: none;
+}
+.search-field input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
 .vendor-card { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: .75rem; background: var(--background); box-shadow: 0 6px 24px color-mix(in oklab,var(--foreground) 6%,transparent); transition: box-shadow .3s, transform .3s; }
 .vendor-card:hover { transform: translateY(-2px); box-shadow: 0 14px 38px color-mix(in oklab,var(--foreground) 12%,transparent); }
 .vendor-image { width: 100%; height: 13rem; object-fit: cover; transition: transform .5s; }
@@ -112,9 +131,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
     radial-gradient(circle at 80% 80%, color-mix(in oklab, var(--primary) 12%, transparent) 0 24%, transparent 26%);
 }
 .polaroid-frame { width: 100%; height: auto; display: block; }
-/* The row is six columns and four fields: the query field and the date field take
-   two each, so they add up to exactly six and leave no dead column at the right.
-   The date field needs the extra column because a native date input's content is
-   ~149px wide, which does not fit in the 141px a single column gives it. */
-@media (min-width:640px){ .search-shell{grid-template-columns:repeat(6,minmax(0,1fr));align-items:center}.search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child{grid-column:auto}.search-shell > :nth-child(1){grid-column:span 2}.search-shell > :nth-child(3){grid-column:span 2}.search-shell > button{grid-column:1/-1}.search-shell > :last-child{grid-column:1/-1}.search-shell-compact{grid-template-columns:2fr 1fr auto}.search-shell-compact > :nth-child(1),.search-shell-compact > :nth-child(2),.search-shell-compact > button{grid-column:auto}.vendor-card{grid-template-columns:220px minmax(0,1fr)}.vendor-image{height:100%;min-height:260px}.vendor-card-compact .vendor-image{min-height:190px}.vendor-card-compact{grid-template-columns:170px minmax(0,1fr)} }
+/* Four fields on one row: What is a bit wider; Where / When / Kids share the rest. */
+@media (min-width:640px){ .search-shell{grid-template-columns:1.4fr 1fr minmax(11.5rem,1fr) .9fr;align-items:center}.search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child{grid-column:auto}.search-shell > button{grid-column:1/-1}.search-shell > :last-child{grid-column:1/-1}.search-shell-compact{grid-template-columns:2fr 1fr auto}.search-shell-compact > :nth-child(1),.search-shell-compact > :nth-child(2),.search-shell-compact > button{grid-column:auto}.vendor-card{grid-template-columns:220px minmax(0,1fr)}.vendor-image{height:100%;min-height:260px}.vendor-card-compact .vendor-image{min-height:190px}.vendor-card-compact{grid-template-columns:170px minmax(0,1fr)} }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}.marquee-track{animation:none}.flip-inner{transition:none}}
