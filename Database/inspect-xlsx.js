@@ -1,0 +1,11 @@
+'use strict';
+const XLSX = require('xlsx');
+const path = require('node:path');
+const wb = XLSX.readFile(path.join(__dirname, 'party_characters_data (1).xlsx'));
+console.log('sheets', wb.SheetNames);
+const s = wb.Sheets[wb.SheetNames[0]];
+const rows = XLSX.utils.sheet_to_json(s, { defval: null });
+console.log('rows', rows.length);
+console.log('keys', Object.keys(rows[0] || {}));
+console.log(JSON.stringify(rows[0], null, 2));
+console.log(JSON.stringify(rows[1], null, 2));

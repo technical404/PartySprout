@@ -1,0 +1,112 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Manrope", sans-serif;
+  --color-background: var(--background); --color-foreground: var(--foreground);
+  --color-card: var(--card); --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive); --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring);
+  --color-surface: var(--surface); --color-primary-soft: var(--primary-soft);
+  --color-trust: var(--trust); --color-trust-soft: var(--trust-soft);
+  --color-success: var(--success); --color-success-soft: var(--success-soft);
+  --color-rating: var(--rating); --color-favorite: var(--favorite);
+  --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px); --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --radius: .65rem;
+  --background: oklch(.995 .006 85); --foreground: oklch(.21 .045 300);
+  --card: oklch(1 0 0); --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0); --popover-foreground: var(--foreground);
+  --primary: oklch(.46 .23 301); --primary-foreground: oklch(.99 .005 85);
+  --secondary: oklch(.94 .045 326); --secondary-foreground: oklch(.34 .11 309);
+  --muted: oklch(.96 .012 295); --muted-foreground: oklch(.49 .035 293);
+  --accent: oklch(.92 .07 219); --accent-foreground: oklch(.27 .07 240);
+  --destructive: oklch(.57 .22 25); --destructive-foreground: oklch(.99 0 0);
+  --border: oklch(.89 .025 300); --input: oklch(.89 .025 300); --ring: var(--primary);
+  --surface: oklch(.975 .018 85); --primary-soft: oklch(.93 .05 305);
+  --trust: oklch(.48 .12 210); --trust-soft: oklch(.94 .035 210);
+  --success: oklch(.48 .13 150); --success-soft: oklch(.94 .05 150);
+  --rating: oklch(.76 .17 73); --favorite: oklch(.59 .22 18);
+  --shadow-brand: 0 12px 30px color-mix(in oklab, var(--primary) 22%, transparent);
+}
+
+* { border-color: var(--border); }
+/* `overflow-x: clip` rather than `hidden`: both contain horizontal overflow, but
+   `hidden`/`auto` turn <body> into a scroll container, and since <body> never
+   actually scrolls (the page scrolls on the viewport) that silently pins every
+   `position: sticky` descendant in place — the journey stack never stacked. */
+html, body { height: auto; min-height: 100%; overflow-x: clip; }
+html { scroll-behavior: auto; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--primary-soft); color: var(--foreground); }
+.font-display { letter-spacing: 0; }
+.shadow-brand { box-shadow: var(--shadow-brand); }
+.nav-link { color: var(--muted-foreground); font-size: .875rem; font-weight: 700; transition: color .2s; }
+.nav-link:hover, .nav-link[data-status="active"] { color: var(--primary); }
+.search-shell { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .35rem; border: 1px solid color-mix(in oklab,var(--border) 70%,transparent); border-radius: 1rem; background: color-mix(in oklab,var(--background) 94%,transparent); padding: .6rem; box-shadow: 0 20px 70px color-mix(in oklab,var(--foreground) 15%,transparent); backdrop-filter: blur(18px); }
+.search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child { grid-column: 1 / -1; }
+.search-field { min-width: 0; padding: .5rem .7rem; border-radius: .6rem; }
+.search-field:focus-within { background: var(--muted); }
+.search-field label { display: block; margin: 0 0 .2rem .2rem; color: var(--foreground); font-size: .65rem; font-weight: 800; text-transform: uppercase; }
+.search-field > div { display: flex; align-items: center; gap: .35rem; }
+/* `flex: none` keeps each icon at its full 1rem. Without it the `w-full` inputs
+   squeeze their flex sibling, and the date input's larger intrinsic width
+   collapsed the calendar icon to 0px — leaving the date text flush with the
+   field edge instead of lined up with the other fields' text. */
+.search-field svg { flex: none; width: 1rem; color: var(--primary); }
+.search-field input { min-width: 0; height: 2rem; border: 0; padding: 0; box-shadow: none; background: transparent; }
+.search-field input:focus-visible { box-shadow: none; }
+.vendor-card { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: .75rem; background: var(--background); box-shadow: 0 6px 24px color-mix(in oklab,var(--foreground) 6%,transparent); transition: box-shadow .3s, transform .3s; }
+.vendor-card:hover { transform: translateY(-2px); box-shadow: 0 14px 38px color-mix(in oklab,var(--foreground) 12%,transparent); }
+.vendor-image { width: 100%; height: 13rem; object-fit: cover; transition: transform .5s; }
+.vendor-card:hover .vendor-image { transform: scale(1.025); }
+.vendor-details { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .25s, opacity .2s; }
+.vendor-card-compact .vendor-details { grid-template-rows: 0fr; opacity: 0; overflow: hidden; }
+.segmented { display: flex; align-items: center; border: 1px solid var(--border); border-radius: .55rem; padding: .15rem; background: var(--background); }
+.map-surface { border: 1px solid var(--border); border-radius: .75rem; background: var(--accent); }
+.map-grid { background-image: linear-gradient(35deg,transparent 45%,color-mix(in oklab,var(--background) 65%,transparent) 46% 52%,transparent 53%),linear-gradient(125deg,transparent 45%,color-mix(in oklab,var(--background) 60%,transparent) 46% 52%,transparent 53%); background-size: 130px 110px; }
+.map-marker { position:absolute; z-index:2; transform:translate(-50%,-50%); border:3px solid var(--background); border-radius:999px; background:var(--primary); padding:.35rem .6rem; color:var(--primary-foreground); font-size:.75rem; font-weight:800; box-shadow:0 4px 14px color-mix(in oklab,var(--foreground) 22%,transparent); transition:transform .2s; }
+.map-marker:hover,.map-marker-active { transform:translate(-50%,-50%) scale(1.18); }
+/* --- Category flip cards ------------------------------------------------- */
+.flip-card { perspective: 1200px; }
+.flip-inner { position: relative; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.4, 0, .2, 1); }
+.flip-card[data-flipped="true"] .flip-inner { transform: rotateY(180deg); }
+.flip-face { position: absolute; inset: 0; overflow: hidden; border-radius: .75rem; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip-back { transform: rotateY(180deg); }
+/* The hidden face is behind `backface-visibility`, which hides it visually but
+   leaves it focusable and clickable — so take it out of both. */
+.flip-card[data-flipped="true"] .flip-front,
+.flip-card:not([data-flipped="true"]) .flip-back { pointer-events: none; }
+
+/* --- Auto-scrolling carousel --------------------------------------------- */
+/* The track holds two copies of the list and shifts by exactly one copy, so
+   spacing must come from each item's own padding: a flex `gap` would add a gap
+   count that does not divide evenly in half and the loop would visibly jump. */
+@keyframes marquee-scroll { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
+.marquee { overflow: hidden; }
+.marquee-track { display: flex; width: max-content; animation: marquee-scroll var(--marquee-duration, 70s) linear infinite; }
+.marquee-item { padding-right: 1.25rem; }
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track { animation-play-state: paused; }
+
+/* --- Scroll-driven sticky stack ------------------------------------------ */
+.journey-panel { transform-origin: top center; will-change: transform; }
+/* The row is six columns and four fields: the query field and the date field take
+   two each, so they add up to exactly six and leave no dead column at the right.
+   The date field needs the extra column because a native date input's content is
+   ~149px wide, which does not fit in the 141px a single column gives it. */
+@media (min-width:640px){ .search-shell{grid-template-columns:repeat(6,minmax(0,1fr));align-items:center}.search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child{grid-column:auto}.search-shell > :nth-child(1){grid-column:span 2}.search-shell > :nth-child(3){grid-column:span 2}.search-shell > button{grid-column:1/-1}.search-shell > :last-child{grid-column:1/-1}.search-shell-compact{grid-template-columns:2fr 1fr auto}.search-shell-compact > :nth-child(1),.search-shell-compact > :nth-child(2),.search-shell-compact > button{grid-column:auto}.vendor-card{grid-template-columns:220px minmax(0,1fr)}.vendor-image{height:100%;min-height:260px}.vendor-card-compact .vendor-image{min-height:190px}.vendor-card-compact{grid-template-columns:170px minmax(0,1fr)} }
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}.marquee-track{animation:none}.flip-inner{transition:none}}
