@@ -102,8 +102,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .marquee:hover .marquee-track,
 .marquee:focus-within .marquee-track { animation-play-state: paused; }
 
-/* --- Scroll-driven sticky stack ------------------------------------------ */
-.journey-panel { transform-origin: top center; will-change: transform; }
+/* --- How-it-works sticky stack (GigSalad-style stacked cards) ------------ */
+.journey-stack { display: grid; gap: 1rem; }
+.journey-card { overflow: hidden; border-radius: 0.75rem; }
+.journey-pattern {
+  background-color: color-mix(in oklab, var(--primary) 8%, var(--background));
+  background-image:
+    radial-gradient(circle at 20% 20%, color-mix(in oklab, var(--primary) 16%, transparent) 0 28%, transparent 30%),
+    radial-gradient(circle at 80% 80%, color-mix(in oklab, var(--primary) 12%, transparent) 0 24%, transparent 26%);
+}
+.polaroid-frame { width: 100%; height: auto; display: block; }
 /* The row is six columns and four fields: the query field and the date field take
    two each, so they add up to exactly six and leave no dead column at the right.
    The date field needs the extra column because a native date input's content is

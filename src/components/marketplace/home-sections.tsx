@@ -1,13 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import superheroesImg from "@/assets/categories/superheroes.jpg";
+import magiciansImg from "@/assets/categories/magicians.jpg";
+import princessesImg from "@/assets/categories/princesses.jpg";
+import guitaristImg from "@/assets/categories/mascots.jpg";
+import magicianPartyImg from "@/assets/magician-party.jpg";
+import picnicImg from "@/assets/party-hero.jpg";
 import {
-  ArrowLeftRight,
   BadgeCheck,
   Building2,
   CalendarCheck,
   ChevronRight,
   MapPin,
-  PartyPopper,
   Quote,
   Search,
   Send,
@@ -273,145 +277,181 @@ export function FeaturedCarouselSection({ vendors }: { vendors: Vendor[] }) {
 /* From search to celebration — scroll-driven sticky stack                    */
 /* ------------------------------------------------------------------------- */
 
-const JOURNEY = [
-  {
-    title: "Search",
-    copy: "Tell us the party dream and we surface the entertainers who fit it.",
-    Icon: Search,
-  },
-  {
-    title: "Compare",
-    copy: "See price, trust signals and fit side by side before you commit.",
-    Icon: ArrowLeftRight,
-  },
-  {
-    title: "Request a quote",
-    copy: "Share your date, city and guest count once and reach several businesses.",
-    Icon: Send,
-  },
-  {
-    title: "Book",
-    copy: "Choose with confidence, knowing exactly what you are getting.",
-    Icon: CalendarCheck,
-  },
-  {
-    title: "Celebrate",
-    copy: "Make a core memory while the entertainer handles the rest.",
-    Icon: PartyPopper,
-  },
-];
-
-/** 0 → 1 as the section scrolls from entering the viewport to leaving it. */
-function useSectionProgress(ref: RefObject<HTMLDivElement | null>) {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const rect = el.getBoundingClientRect();
-      const scrollable = rect.height - window.innerHeight;
-      if (scrollable <= 0) {
-        setProgress(0);
-        return;
-      }
-      const passed = Math.min(Math.max(-rect.top, 0), scrollable);
-      setProgress(passed / scrollable);
-    };
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(measure);
-    };
-
-    measure();
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    return () => {
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [ref]);
-
-  return progress;
-}
-
-function clamp01(value: number, min = 0, max = 1) {
-  return Math.min(max, Math.max(min, value));
+function Polaroid({
+  src,
+  alt,
+  frameClass,
+  clipId,
+}: {
+  src: string;
+  alt: string;
+  frameClass: string;
+  clipId: string;
+}) {
+  return (
+    <div className="relative">
+      <svg
+        className={`${frameClass} pointer-events-none absolute top-1/2 left-1/2 size-full -translate-x-1/2 -translate-y-1/2 -rotate-[16deg]`}
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 448 448"
+        fill="none"
+        aria-hidden
+      >
+        <path
+          fill="currentColor"
+          d="M12.2,35C12.2,15.7,27.9,0,47.2,0h353.5c19.3,0,35,15.7,35,35v378c0,19.3-15.7,35-35,35H47.2c-19.3,0-35-15.7-35-35V35Z"
+        />
+      </svg>
+      <svg className="polaroid-frame text-primary relative" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 448" fill="none">
+        <defs>
+          <clipPath id={clipId}>
+            <path d="M12.2,35C12.2,15.7,27.9,0,47.2,0h353.5c19.3,0,35,15.7,35,35v378c0,19.3-15.7,35-35,35H47.2c-19.3,0-35-15.7-35-35V35Z" />
+          </clipPath>
+        </defs>
+        <image width="100%" height="100%" preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} href={src} />
+        <title>{alt}</title>
+      </svg>
+    </div>
+  );
 }
 
 export function CelebrationJourneySection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const progress = useSectionProgress(containerRef);
-  const lastIndex = JOURNEY.length - 1;
-
   return (
-    <section className="bg-foreground py-20 text-background">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <SectionHead kicker="Simple, clear, delightful" title="From search to celebration" />
+    <section className="space-y-10 bg-background py-20 text-foreground">
+      <div className="flex flex-col items-center gap-4 px-4 text-primary">
+        <p className="text-sm font-bold uppercase tracking-wide">Simple, clear, delightful</p>
+        <h2 className="font-display text-3xl font-extrabold md:text-5xl">From search to celebration</h2>
+        <p className="max-w-xs text-center text-pretty text-base text-primary/80 md:text-lg">
+          Book the best. Exceptional children&apos;s entertainers are just a few clicks away.
+        </p>
       </div>
 
-      <div ref={containerRef} className="relative" style={{ height: `${JOURNEY.length * 100}vh` }}>
-        {JOURNEY.map((step, index) => {
-          // How many cards have stacked on top of this one (0 = still the front
-          // of the deck). Deliberately unclamped: clamping would push every
-          // buried card onto one identical scale, flattening the deck into a
-          // single layer instead of five.
-          const buriedLayers = Math.max(0, progress * lastIndex - index);
-          const scale = clamp01(1 - buriedLayers * 0.045, 0.84, 1);
-
-          return (
-            <div
-              key={step.title}
-              className="sticky flex h-screen items-center justify-center px-4"
-              style={{ top: `${72 + index * 16}px`, zIndex: index + 1 }}
-            >
-              <article
-                className={cn(
-                  "journey-panel w-full max-w-3xl rounded-2xl border border-background/15 bg-background p-8 text-foreground shadow-2xl sm:p-12",
-                )}
-                style={{ transform: `scale(${scale})` }}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-                    <step.Icon className="size-6" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-primary">
-                      Step {index + 1} of {JOURNEY.length}
+      <div className="journey-stack mx-auto max-w-7xl px-4 sm:px-6">
+        <article className="journey-card relative z-10 flex flex-col overflow-hidden bg-primary-soft xl:sticky xl:top-[100px] xl:flex-row">
+          <div className="w-full p-8 lg:w-1/2 lg:p-12">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 1</p>
+            <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Browse and compare</h3>
+            <p className="mt-4 max-w-md text-base leading-8 text-primary md:text-lg">
+              Uncover trusted superheroes, princesses and magicians in your city, then compare rates and reviews.
+            </p>
+          </div>
+          <div className="relative w-full xl:w-10/12">
+            <div className="journey-pattern flex items-center justify-center p-6 lg:py-16">
+              <div className="flex gap-4">
+                <div className="flex h-auto flex-1 flex-col gap-4">
+                  <img src={superheroesImg} alt="Superhero entertainers" className="h-auto rounded-2xl object-cover sm:h-full" />
+                  <div className="rounded-2xl bg-blue-600 p-4 font-bold text-white md:p-6">
+                    <p className="line-clamp-2 text-xs sm:text-sm md:text-base">
+                      Superheroes <span className="text-sky-200">near</span> Dallas, TX
                     </p>
-                    <h3 className="font-display text-2xl font-extrabold sm:text-3xl">
-                      {step.title}
-                    </h3>
                   </div>
                 </div>
-                <p className="mt-5 max-w-xl text-base leading-8 text-muted-foreground">
-                  {step.copy}
-                </p>
-                <div className="mt-7 flex flex-wrap gap-2">
-                  {JOURNEY.map((other, dot) => (
-                    <span
-                      key={other.title}
-                      aria-hidden
-                      className={cn(
-                        "h-1.5 rounded-full transition-all duration-300",
-                        dot === index ? "w-8 bg-primary" : "w-4 bg-border",
-                      )}
-                    />
-                  ))}
+                <div className="flex h-auto flex-1 flex-col gap-4">
+                  <div className="rounded-2xl bg-amber-300 p-4 font-bold text-primary md:p-6">
+                    <p className="text-sm md:text-base">
+                      Magician <span className="text-fuchsia-700">near</span> Chicago, IL
+                    </p>
+                  </div>
+                  <img src={magiciansImg} alt="Children&apos;s magician" className="h-auto rounded-2xl object-cover sm:h-full" />
                 </div>
-              </article>
+                <div className="hidden flex-1 flex-col gap-4 md:flex">
+                  <img src={princessesImg} alt="Princess party entertainers" className="h-full rounded-2xl object-cover" />
+                  <div className="rounded-2xl bg-primary p-4 font-bold text-primary-foreground md:p-6">
+                    <p className="line-clamp-2 text-xs sm:text-sm md:text-base">
+                      Princesses <span className="text-fuchsia-200">near</span> Atlanta, GA
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </article>
 
-      <div className="mx-auto flex max-w-7xl justify-center px-4 pt-8 sm:px-6">
-        <Button size="lg" asChild className="h-14 px-10 text-base">
-          <Link to="/request-quote">Request a quote</Link>
-        </Button>
+        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_14%,white)] xl:sticky xl:top-[215px] xl:flex-row">
+          <div className="w-full p-8 lg:w-1/2 lg:p-12">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 2</p>
+            <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Book securely</h3>
+            <p className="mt-4 max-w-md text-base leading-8 text-primary md:text-lg">
+              Send one quote request with your date and guest count. Compare replies, then book only when it feels right.
+            </p>
+          </div>
+          <div className="relative w-full xl:w-10/12">
+            <div className="journey-pattern flex justify-center p-6 lg:p-16">
+              <div className="relative space-y-6">
+                <div className="absolute -top-6 -right-6 z-10 rotate-12 sm:-right-8">
+                  <div className="size-36 p-[10%] sm:size-48">
+                    <Polaroid src={magicianPartyImg} alt="Birthday celebration" frameClass="text-emerald-500" clipId="journey-clip-cake" />
+                  </div>
+                </div>
+                <div className="relative">
+                  <svg
+                    className="text-orange-300 absolute bottom-0 h-auto w-full -translate-x-5 -rotate-2 sm:h-[88%] sm:w-auto sm:-translate-x-7"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 448 448"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M12.2,35C12.2,15.7,27.9,0,47.2,0h353.5c19.3,0,35,15.7,35,35v378c0,19.3-15.7,35-35,35H47.2c-19.3,0-35-15.7-35-35V35Z"
+                    />
+                  </svg>
+                  <div className="relative max-w-sm space-y-4 rounded-2xl bg-white p-6 text-xs text-primary shadow-lg">
+                    <div className="flex items-center gap-4">
+                      <img src={guitaristImg} width={40} height={40} alt="" className="size-10 rounded-full object-cover" />
+                      <p className="text-sm font-bold">Jordan M.</p>
+                    </div>
+                    <hr />
+                    <div>
+                      <p className="font-bold">Kids magician</p>
+                      <p>Sat April 27</p>
+                      <p>4:00 PM – 6:00 PM</p>
+                    </div>
+                    <div>
+                      <p className="font-bold">Event details</p>
+                      <p>
+                        It&apos;s my daughter&apos;s 7th birthday
+                        <span className="hidden sm:inline"> and we&apos;d love a magician for the backyard party</span>.
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-lg bg-primary-soft p-4 text-xs">
+                        <span className="font-bold">Quote from</span>
+                        <span className="font-bold">$225</span>
+                      </div>
+                      <Link
+                        to="/request-quote"
+                        className="block w-full rounded-lg bg-primary py-4 text-center text-sm font-semibold text-primary-foreground"
+                      >
+                        Request a quote
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_22%,white)] xl:sticky xl:top-[330px] xl:flex-row">
+          <div className="w-full p-8 lg:w-1/2 lg:p-12">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 3</p>
+            <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Enjoy your event</h3>
+            <p className="mt-4 max-w-md text-base leading-8 text-primary md:text-lg">
+              Watch the birthday spring to life while the entertainer handles the show.
+            </p>
+            <Button size="lg" asChild className="mt-6">
+              <Link to="/request-quote">Start planning</Link>
+            </Button>
+          </div>
+          <div className="relative w-full xl:w-10/12">
+            <div className="journey-pattern flex justify-center p-6 lg:py-16">
+              <div className="w-full max-w-lg p-[10%]">
+                <Polaroid src={picnicImg} alt="Kids party celebration" frameClass="text-fuchsia-500" clipId="journey-clip-picnic" />
+              </div>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   );
