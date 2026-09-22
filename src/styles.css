@@ -60,6 +60,41 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child { grid-column: 1 / -1; }
 .search-field { min-width: 0; padding: .5rem .7rem; border-radius: .6rem; }
 .search-field:focus-within { background: var(--muted); }
+.search-suggest {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  top: calc(100% - .15rem);
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: .7rem;
+  background: var(--background);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 12%, transparent);
+  padding: .35rem;
+}
+.search-suggest button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  border-radius: .5rem;
+  padding: .55rem .7rem;
+  text-align: left;
+  font-size: .875rem;
+  font-weight: 600;
+}
+.search-suggest button:hover,
+.search-suggest button:focus-visible { background: var(--muted); }
+.search-suggest button span:last-child {
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .search-field label { display: block; margin: 0 0 .2rem .2rem; color: var(--foreground); font-size: .65rem; font-weight: 800; text-transform: uppercase; }
 .search-field > div { display: flex; align-items: center; gap: .35rem; }
 /* `flex: none` keeps each icon at its full 1rem. Without it the `w-full` inputs

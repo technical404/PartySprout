@@ -380,10 +380,23 @@ function build_filters(array $filters): array
         $params[] = $like;
         $params[] = $like;
     }
-    if (!empty($filters['categoryId'])) {
-        // Any category the business belongs to, not just its primary one.
-        $where[] = 'EXISTS (SELECT 1 FROM listing_categories lc WHERE lc.listing_id = l.id AND lc.category_id = ?)';
-        $params[] = (int) $filters['categoryId'];
+    $categoryIds = [];
+    if (!empty($filters['categoryIds']) && is_array($filters['categoryIds'])) {
+        foreach ($filters['categoryIds'] as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+                $categoryIds[] = $id;
+            }
+        }
+    } elseif (!empty($filters['categoryId'])) {
+        $categoryIds[] = (int) $filters['categoryId'];
+    }
+    if ($categoryIds) {
+        $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+        $where[] = "EXISTS (SELECT 1 FROM listing_categories lc WHERE lc.listing_id = l.id AND lc.category_id IN ($placeholders))";
+        foreach ($categoryIds as $id) {
+            $params[] = $id;
+        }
     }
     if (isset($filters['priceMin'])) {
         // Businesses with no published price cannot claim to be under a budget.
@@ -1206,10 +1219,18 @@ try {
     if ($method === 'GET' && $path === '/api/listings') {
         $slugMap = ['fairies' => 'fairy', 'non-mascot-characters' => 'non-mascots'];
         $category = text($_GET['category'] ?? '');
-        $categoryId = null;
+        $categoryIds = [];
         if ($category !== '') {
-            $cat = category_by_slug($db, $slugMap[$category] ?? $category);
-            $categoryId = $cat === null ? null : (int) $cat['id'];
+            foreach (preg_split('/[,\s]+/', $category) as $slug) {
+                $slug = trim((string) $slug);
+                if ($slug === '') {
+                    continue;
+                }
+                $cat = category_by_slug($db, $slugMap[$slug] ?? $slug);
+                if ($cat !== null) {
+                    $categoryIds[] = (int) $cat['id'];
+                }
+            }
         }
         $city = text($_GET['city'] ?? '');
         if ($city === '') {
@@ -1221,8 +1242,10 @@ try {
         if ($qText !== '') {
             $filters['q'] = $qText;
         }
-        if ($category !== '') {
-            $filters['categoryId'] = $categoryId ?? 0;
+        if ($categoryIds) {
+            $filters['categoryIds'] = $categoryIds;
+        } elseif ($category !== '') {
+            $filters['categoryId'] = 0;
         }
         $city = trim(preg_replace('/,\s*[A-Z]{2}$/i', '', $city) ?? '');
         if ($city !== '') {

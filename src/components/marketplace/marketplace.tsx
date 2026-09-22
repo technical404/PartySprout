@@ -100,7 +100,11 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   const [date, setDate] = useState(initialDate);
   const [kids, setKids] = useState(initialKids);
   const [suggestions, setSuggestions] = useState<City[]>([]);
-  const cityListId = compact ? "compact-city-options" : "hero-city-options";
+  const [queryOpen, setQueryOpen] = useState(false);
+  const [cityOpen, setCityOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const queryId = compact ? "compact-query" : "hero-query";
+  const locationId = compact ? "compact-location" : "hero-location";
 
   useEffect(() => {
     setQuery(initial);
@@ -108,6 +112,10 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
     setDate(initialDate);
     setKids(initialKids);
   }, [initial, initialLocation, initialDate, initialKids]);
+
+  useEffect(() => {
+    void fetchCategories().then(setCategories);
+  }, []);
 
   useEffect(() => {
     const term = location.trim();
@@ -127,6 +135,16 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
     };
   }, [location]);
 
+  const querySuggestions = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (term.length < 1) return categories.slice(0, 8);
+    return categories.filter((category) =>
+      category.name.toLowerCase().includes(term) ||
+      category.slug.replaceAll("-", " ").includes(term) ||
+      category.subcategories.some((item) => item.toLowerCase().includes(term)),
+    ).slice(0, 8);
+  }, [categories, query]);
+
   return <form
     onSubmit={(event) => {
       event.preventDefault();
@@ -136,10 +154,67 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
       }).toString()}`);
     }}
     className={cn("search-shell", compact && "search-shell-compact")}>
-    <div className="search-field sm:col-span-2"><label htmlFor={compact ? "compact-query" : "hero-query"}>What are you looking for?</label><div><Search /><Input id={compact ? "compact-query" : "hero-query"} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Superhero, princess, magician..." /></div></div>
-    <div className="search-field"><label htmlFor={compact ? "compact-location" : "hero-location"}>Where?</label><div><MapPin /><Input id={compact ? "compact-location" : "hero-location"} list={cityListId} value={location} onChange={(event) => setLocation(event.target.value)} placeholder="City or state" autoComplete="off" /></div>
-      <datalist id={cityListId}>{suggestions.map((city) => <option key={`${city.name}-${city.stateCode}`} value={city.label}>{`${city.count} businesses`}</option>)}</datalist>
-      {location.trim().length >= 2 && suggestions.length > 0 && <p className="mt-1.5 text-xs text-muted-foreground">{suggestions.length} matching cities, e.g. {suggestions.slice(0, 2).map((city) => `${city.label} (${city.count})`).join(", ")}</p>}
+    <div className="search-field relative sm:col-span-2">
+      <label htmlFor={queryId}>What are you looking for?</label>
+      <div>
+        <Search />
+        <Input
+          id={queryId}
+          value={query}
+          autoComplete="off"
+          placeholder="Superhero, princess, magician..."
+          onChange={(event) => { setQuery(event.target.value); setQueryOpen(true); }}
+          onFocus={() => setQueryOpen(true)}
+          onBlur={() => window.setTimeout(() => setQueryOpen(false), 120)}
+        />
+      </div>
+      {queryOpen && querySuggestions.length > 0 && (
+        <ul className="search-suggest" role="listbox">
+          {querySuggestions.map((category) => (
+            <li key={category.slug}>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => { setQuery(category.name); setQueryOpen(false); }}
+              >
+                <span>{category.name}</span>
+                <span>{category.count} businesses</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+    <div className="search-field relative">
+      <label htmlFor={locationId}>Where?</label>
+      <div>
+        <MapPin />
+        <Input
+          id={locationId}
+          value={location}
+          autoComplete="off"
+          placeholder="City or state"
+          onChange={(event) => { setLocation(event.target.value); setCityOpen(true); }}
+          onFocus={() => setCityOpen(true)}
+          onBlur={() => window.setTimeout(() => setCityOpen(false), 120)}
+        />
+      </div>
+      {cityOpen && suggestions.length > 0 && (
+        <ul className="search-suggest" role="listbox">
+          {suggestions.map((city) => (
+            <li key={`${city.name}-${city.stateCode}`}>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => { setLocation(city.label); setCityOpen(false); }}
+              >
+                <span>{city.label}</span>
+                <span>{city.count} businesses</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
     {!compact && <>
       <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><Input id="party-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></div>
@@ -158,6 +233,17 @@ export function FavoriteButton({ id, name }: { id: number; name: string }) {
   const { isSaved, toggleSaved } = useSaved();
   const saved = isSaved(id);
   return <Button variant="surface" size="icon" className="absolute right-3 top-3 z-10 rounded-full" onClick={() => void toggleSaved(id)} aria-label={`${saved ? "Remove" : "Save"} ${name}`} aria-pressed={saved}><Heart className={cn(saved && "fill-favorite text-favorite")} /></Button>;
+}
+
+function categorySlugs(value: string) {
+  return value.split(",").map((slug) => slug.trim()).filter(Boolean);
+}
+
+function toggleCategorySlug(current: string, slug: string) {
+  const next = new Set(categorySlugs(current));
+  if (next.has(slug)) next.delete(slug);
+  else next.add(slug);
+  return [...next].join(",");
 }
 
 function initials(name: string) {
@@ -221,13 +307,21 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
       <legend className="mb-3 text-sm font-bold">Category</legend>
       <div className="space-y-2.5">
         <label className="flex cursor-pointer items-center gap-3 text-sm">
-          <input type="radio" name={mobile ? "category-mobile" : "category"} checked={!state.category} onChange={() => onChange({ category: "", page: 1 })} />
+          <Checkbox checked={!state.category} onCheckedChange={(checked) => { if (checked) onChange({ category: "", page: 1 }); }} />
           All categories
         </label>
-        {categories.map((option) => <label key={option.slug} className="flex cursor-pointer items-center gap-3 text-sm">
-          <input type="radio" name={mobile ? "category-mobile" : "category"} checked={state.category === option.slug} onChange={() => onChange({ category: option.slug, page: 1 })} />
-          {option.name} <span className="text-muted-foreground">({option.count})</span>
-        </label>)}
+        {categories.map((option) => {
+          const selected = categorySlugs(state.category).includes(option.slug);
+          return (
+            <label key={option.slug} className="flex cursor-pointer items-center gap-3 text-sm">
+              <Checkbox
+                checked={selected}
+                onCheckedChange={() => onChange({ category: toggleCategorySlug(state.category, option.slug), page: 1 })}
+              />
+              {option.name} <span className="text-muted-foreground">({option.count})</span>
+            </label>
+          );
+        })}
       </div>
     </fieldset>
 
@@ -339,7 +433,7 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
   const activeFilters = [active.category, active.location, active.priceMin, active.priceMax, active.ratingMin].filter(Boolean).length;
 
   return <main className="min-h-screen bg-surface pb-24">
-    <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur-xl">
+    <div className="border-b bg-background/95 px-4 py-3 lg:sticky lg:top-0 lg:z-30 lg:backdrop-blur-xl">
       <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} /></div>
     </div>
     <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
