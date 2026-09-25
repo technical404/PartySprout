@@ -145,13 +145,27 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
     ).slice(0, 8);
   }, [categories, query]);
 
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const matchedCategory = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return undefined;
+    return categories.find((category) =>
+      category.name.toLowerCase() === term ||
+      category.slug.replaceAll("-", " ") === term ||
+      category.slug === term,
+    );
+  }, [categories, query]);
+
   return <form
     onSubmit={(event) => {
       event.preventDefault();
-      // A real navigation: the search page owns the state, so the URL is shareable.
-      window.location.assign(`/search?${new URLSearchParams({
-        q: query, location, ...(date ? { date } : {}), ...(kids ? { kids } : {}),
-      }).toString()}`);
+      const params = new URLSearchParams({ location });
+      if (matchedCategory) params.set("category", matchedCategory.slug);
+      else if (query.trim()) params.set("q", query.trim());
+      if (date) params.set("date", date);
+      if (kids) params.set("kids", kids);
+      window.location.assign(`/search?${params.toString()}`);
     }}
     className={cn("search-shell", compact && "search-shell-compact")}>
     <div className="search-field relative sm:col-span-2">
@@ -217,7 +231,7 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
       )}
     </div>
     {!compact && <>
-      <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><Input id="party-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></div>
+      <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><Input id="party-date" type="date" min={today} value={date} onChange={(event) => setDate(event.target.value < today ? "" : event.target.value)} /></div></div>
       <div className="search-field"><label htmlFor="party-kids">Kids</label><div><Users /><Input id="party-kids" type="number" min="1" value={kids} onChange={(event) => setKids(event.target.value)} placeholder="How many?" /></div></div>
     </>}
     <Button type="submit" size="lg" className={cn("h-14", compact ? "sm:h-12" : "sm:h-[4.5rem]")}><Search />{compact ? "Search" : "Find party entertainment"}</Button>

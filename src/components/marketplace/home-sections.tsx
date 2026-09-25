@@ -89,10 +89,17 @@ function CategoryFlipCard({ category }: { category: Category }) {
           </div>
           {/* Pointer devices flip on hover, so this button is the touch and
               keyboard path to the same content. */}
+          <Link
+            to="/category/$slug"
+            params={{ slug: category.slug }}
+            className="absolute inset-0 cursor-pointer md:hidden focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
+          >
+            <span className="sr-only">Browse {category.name}</span>
+          </Link>
           <button
             type="button"
             onClick={() => setFlipped(true)}
-            className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
+            className="absolute inset-0 hidden cursor-pointer md:block focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-background"
           >
             <span className="sr-only">Show what&rsquo;s inside {category.name}</span>
           </button>
