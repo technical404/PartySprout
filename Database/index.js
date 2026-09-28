@@ -33,6 +33,11 @@ function migrate() {
   addColumn('listings', 'submitted_by', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   addColumn('listings', 'city_text', 'TEXT');
   addColumn('listings', 'review_note', 'TEXT');
+  // Sponsored placement, kept first in every category and sort order.
+  addColumn('listings', 'pin_rank', 'INTEGER NOT NULL DEFAULT 0');
+  // Stamped by Database/fetch-about.cjs once the description came from the
+  // business's own about page, so later runs only retry what failed.
+  addColumn('listings', 'about_fetched_at', 'TEXT');
   // Links a quote request to the account that sent it, when there was one.
   addColumn('quote_requests', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }

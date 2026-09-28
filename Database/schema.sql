@@ -70,6 +70,10 @@ CREATE TABLE IF NOT EXISTS listings (
   city_text    TEXT,
   -- Short reason shown to the submitter when an admin rejects a submission.
   review_note  TEXT,
+  -- When Database/fetch-about.cjs successfully replaced `description` with text
+  -- read from the business's own about page. NULL means "not fetched yet", so a
+  -- later run retries it.
+  about_fetched_at TEXT,
   created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

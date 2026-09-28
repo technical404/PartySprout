@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS listings (
   status       VARCHAR(32) NOT NULL DEFAULT 'active',
   review_note  TEXT NULL,
   submitted_by INT NULL,
+  -- When Database/fetch-about.cjs replaced `description` with text read from the
+  -- business's own about page. NULL means "not fetched yet".
+  about_fetched_at DATETIME NULL,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_listings_category (category_id, status),
   KEY idx_listings_city (city_id, status),

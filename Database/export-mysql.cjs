@@ -57,6 +57,8 @@ const parts = [
     'price_from',
     'rating',
     'is_featured',
+    'pin_rank',
+    'about_fetched_at',
     'status',
     'review_note',
     'submitted_by',
