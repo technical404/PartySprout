@@ -450,7 +450,9 @@ function order_clause(?string $sort): string
         'rating' => 'l.rating IS NULL, l.rating DESC, l.name',
         'newest' => 'l.created_at DESC, l.id DESC',
     ];
-    return $sorts[$sort ?? ''] ?? $sorts['relevance'];
+    $order = $sorts[$sort ?? ''] ?? $sorts['relevance'];
+    // Sponsored placements (pin_rank > 0) lead every category and every sort.
+    return 'l.pin_rank DESC, ' . $order;
 }
 
 /**

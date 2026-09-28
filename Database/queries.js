@@ -209,7 +209,9 @@ const SORTS = {
 };
 
 function orderClause(sort) {
-  return SORTS[sort] || SORTS.relevance;
+  const order = SORTS[sort] || SORTS.relevance;
+  // Sponsored placements (pin_rank > 0) lead every category and every sort.
+  return `l.pin_rank DESC, ${order}`;
 }
 
 

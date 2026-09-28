@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS listings (
   price_from   DECIMAL(10,2) NULL,
   rating       DECIMAL(3,2) NULL,
   is_featured  TINYINT NOT NULL DEFAULT 0,
+  -- Sponsored placement. Anything above 0 sorts ahead of the normal results in
+  -- every category and for every sort order; 0 (the default) is a normal listing.
+  pin_rank     INT NOT NULL DEFAULT 0,
   -- active = live in the directory, pending = waiting for review,
   -- rejected = sent back to the business with review_note.
   status       VARCHAR(32) NOT NULL DEFAULT 'active',

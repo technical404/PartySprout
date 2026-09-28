@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS listings (
   price_from   REAL,
   rating       REAL,
   is_featured  INTEGER NOT NULL DEFAULT 0,
+  -- Sponsored placement. Anything above 0 sorts ahead of the normal results in
+  -- every category and for every sort order; 0 (the default) is a normal listing.
+  pin_rank     INTEGER NOT NULL DEFAULT 0,
   status       TEXT    NOT NULL DEFAULT 'active',
   -- Set for businesses that arrived through /list-your-business rather than the
   -- importer. `submitted_by` is a users.id (no REFERENCES clause: users refers
