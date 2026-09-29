@@ -41,7 +41,6 @@ import {
   type Vendor,
 } from "@/lib/marketplace-data";
 import { SUPPORT_EMAIL } from "@/lib/site";
-import { cn } from "@/lib/utils";
 
 const BUDGETS = [
   "Under $200",
@@ -60,7 +59,7 @@ const quoteSchema = z.object({
   city: z.string().trim().min(2, "Which city is the party in?"),
   guestCount: z.string().trim(),
   childAge: z.string().trim(),
-  category: z.string(),
+  category: z.string().min(1, "Pick what you are celebrating."),
   budget: z.string().min(1, "Please pick an approximate budget."),
   details: z.string().trim().min(10, "Tell us a bit more — at least 10 characters."),
 });
@@ -81,34 +80,117 @@ const EMPTY_FORM: QuoteFormValues = {
 };
 
 /**
- * The request is asked for in three short steps instead of one long form: the
- * party, then the budget and details, then how to reach the family. Every step
- * is validated before it can be left, so nobody reaches the end with a missing
- * answer behind them.
+ * The request is asked one question at a time rather than as one long form.
+ * Each step owns a single field, shows how far along the visitor is, and has to
+ * be answered before the next one opens — so nobody reaches the end with a
+ * missing answer behind them. Optional questions simply let "Next" through.
  */
 type QuoteStep = {
-  title: string;
-  description: string;
-  fields: Array<keyof QuoteFormValues>;
+  field: keyof QuoteFormValues;
+  question: string;
+  hint?: string;
+};
+
+const FIRST_STEP: QuoteStep = {
+  field: "category",
+  question: "What are you celebrating?",
+  hint: "Pick the entertainment you have in mind.",
 };
 
 const STEPS: QuoteStep[] = [
+  FIRST_STEP,
   {
-    title: "The party",
-    description: "What are we celebrating, and where?",
-    fields: ["city", "eventDate", "category", "guestCount", "childAge"],
+    field: "city",
+    question: "Where is the party?",
+    hint: "We only match entertainers who cover your area.",
   },
   {
-    title: "Budget and details",
-    description: "A rough range and anything the entertainer should know.",
-    fields: ["budget", "details"],
+    field: "eventDate",
+    question: "When is the party?",
+    hint: "Skip this if you have not settled on a date yet.",
   },
   {
-    title: "How to reach you",
-    description: "So the entertainers can reply with a quote.",
-    fields: ["name", "email", "phone"],
+    field: "guestCount",
+    question: "How many children are you expecting?",
+    hint: "An approximate number is fine.",
+  },
+  {
+    field: "childAge",
+    question: "How old are the children?",
+    hint: "Ages help entertainers pitch the right show.",
+  },
+  {
+    field: "budget",
+    question: "What is your budget?",
+    hint: "A rough range keeps the quotes realistic.",
+  },
+  {
+    field: "details",
+    question: "Anything else the entertainer should know?",
+    hint: "Theme, venue, timings, special requests.",
+  },
+  { field: "name", question: "What is your name?" },
+  {
+    field: "email",
+    question: "What is your email?",
+    hint: "Quotes and replies come back to this address.",
+  },
+  {
+    field: "phone",
+    question: "What is your phone number?",
+    hint: "Optional, but it is the quickest way to reach you.",
   },
 ];
+
+/** Today in the visitor's own timezone, for the date field's earliest choice. */
+function todayISO() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+/** Circular progress with the percentage sitting in the middle of the ring. */
+function ProgressRing({ value }: { value: number }) {
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="relative size-16" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)}>
+      <svg viewBox="0 0 64 64" className="size-16 -rotate-90" aria-hidden>
+        <circle cx="32" cy="32" r={radius} fill="none" strokeWidth="6" className="stroke-muted" />
+        <circle
+          cx="32"
+          cy="32"
+          r={radius}
+          fill="none"
+          strokeWidth="6"
+          strokeLinecap="round"
+          className="stroke-primary transition-[stroke-dashoffset] duration-500 ease-out"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - value / 100)}
+        />
+      </svg>
+      <span className="absolute inset-0 grid place-items-center text-xs font-bold text-muted-foreground">
+        {Math.round(value)}%
+      </span>
+    </div>
+  );
+}
+
+/** The question and its hint, which double as the field's label and description. */
+function StepQuestion({ question, hint }: { question: string; hint?: string | undefined }) {
+  return (
+    <>
+      <FormLabel className="block font-display text-xl leading-snug font-extrabold sm:text-2xl">
+        {question}
+      </FormLabel>
+      {hint && <FormDescription className="text-sm leading-6">{hint}</FormDescription>}
+    </>
+  );
+}
+
+/** Shared look for every control, so a step reads the same whatever it asks. */
+const CONTROL_CLASS = "h-12 rounded-xl px-4 text-base";
+const CONTROL_INVALID = "aria-invalid:border-destructive aria-invalid:ring-destructive/30";
 
 export function RequestQuoteForm({
   vendor = null,
@@ -142,20 +224,22 @@ export function RequestQuoteForm({
     defaultValues: defaults,
   });
 
+  const current = STEPS[step] ?? FIRST_STEP;
   const isLastStep = step === STEPS.length - 1;
+  const progress = ((step + 1) / STEPS.length) * 100;
 
-  /** Only move on once the step being left has nothing left to answer. */
+  /** Only open the next question once this one has nothing left to answer. */
   async function goNext() {
-    const valid = await form.trigger(STEPS[step].fields);
-    if (valid) setStep((current) => Math.min(current + 1, STEPS.length - 1));
+    const valid = await form.trigger(current.field);
+    if (valid) setStep((index) => Math.min(index + 1, STEPS.length - 1));
   }
 
   /**
    * When the whole form is submitted from the last step, a rejection from an
-   * earlier step would be invisible — so land the visitor back on that step.
+   * earlier question would be invisible — so land the visitor back on it.
    */
   function goToFirstProblem(problems: Array<keyof QuoteFormValues>) {
-    const index = STEPS.findIndex((item) => item.fields.some((field) => problems.includes(field)));
+    const index = STEPS.findIndex((item) => problems.includes(item.field));
     if (index >= 0) setStep(index);
   }
 
@@ -179,7 +263,7 @@ export function RequestQuoteForm({
 
     if (!result.ok) {
       // Surface any field-level errors the server rejected, and go back to the
-      // step that holds them so the messages are actually visible.
+      // question that holds them so the messages are actually visible.
       const rejected: Array<keyof QuoteFormValues> = [];
       for (const [field, message] of Object.entries(result.fields ?? {})) {
         if (field in EMPTY_FORM) {
@@ -224,6 +308,14 @@ export function RequestQuoteForm({
     );
   }
 
+  const question = (hint: string | undefined, control: React.ReactNode) => (
+    <FormItem className="mt-6">
+      <StepQuestion question={current.question} hint={hint} />
+      <FormControl>{control}</FormControl>
+      <FormMessage />
+    </FormItem>
+  );
+
   return (
     <Form {...form}>
       <form
@@ -259,133 +351,18 @@ export function RequestQuoteForm({
           </div>
         )}
 
-        <ol className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-3 text-sm">
-          {STEPS.map((item, index) => {
-            const done = index < step;
-            const current = index === step;
-            return (
-              <li key={item.title} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={index > step}
-                  aria-current={current ? "step" : undefined}
-                  onClick={() => setStep(index)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors",
-                    current ? "border-primary bg-primary-soft font-bold text-primary" : "border-border font-semibold text-muted-foreground",
-                    done && "hover:text-primary",
-                    index > step && "cursor-not-allowed opacity-60",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold",
-                      current ? "bg-primary text-primary-foreground" : "bg-muted",
-                    )}
-                  >
-                    {done ? <Check /> : index + 1}
-                  </span>
-                  {item.title}
-                </button>
-                {index < STEPS.length - 1 && <span aria-hidden className="h-px w-4 bg-border" />}
-              </li>
-            );
-          })}
-        </ol>
+        <div key={step} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ProgressRing value={progress} />
 
-        <p className="mb-5 text-sm text-muted-foreground">{STEPS[step].description}</p>
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          {step === 2 && <>
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Your name</FormLabel>
-                <FormControl>
-                  <Input autoComplete="name" placeholder="Alex Rivera" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="alex@example.com"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone (optional)</FormLabel>
-                <FormControl>
-                  <Input type="tel" autoComplete="tel" placeholder="+1 555 010 2030" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          </>}
-          {step === 0 && <>
-          <FormField
-            control={form.control}
-            name="city"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Party city</FormLabel>
-                <FormControl>
-                  <Input placeholder="Dallas, TX" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="eventDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Event date (optional)</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Entertainment type (optional)</FormLabel>
+          {current.field === "category" && (
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => question(current.hint, (
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pick a category" />
-                    </SelectTrigger>
-                  </FormControl>
+                  <SelectTrigger className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}>
+                    <SelectValue placeholder="Choose one" />
+                  </SelectTrigger>
                   <SelectContent>
                     {categories.map((category) => (
                       <SelectItem key={category.slug} value={category.slug}>
@@ -394,53 +371,59 @@ export function RequestQuoteForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              ))}
+            />
+          )}
 
-          <FormField
-            control={form.control}
-            name="guestCount"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Number of children (optional)</FormLabel>
-                <FormControl>
-                  <Input inputMode="numeric" placeholder="15" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {current.field === "city" && (
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => question(current.hint, (
+                <Input autoComplete="address-level2" placeholder="Dallas, TX" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
 
-          <FormField
-            control={form.control}
-            name="childAge"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Ages (optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Mostly age 6" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {current.field === "eventDate" && (
+            <FormField
+              control={form.control}
+              name="eventDate"
+              render={({ field }) => question(current.hint, (
+                <Input type="date" min={todayISO()} className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
 
-          </>}
-          {step === 1 && <>
-          <FormField
-            control={form.control}
-            name="budget"
-            render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Budget</FormLabel>
+          {current.field === "guestCount" && (
+            <FormField
+              control={form.control}
+              name="guestCount"
+              render={({ field }) => question(current.hint, (
+                <Input inputMode="numeric" placeholder="15" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
+
+          {current.field === "childAge" && (
+            <FormField
+              control={form.control}
+              name="childAge"
+              render={({ field }) => question(current.hint, (
+                <Input placeholder="Mostly age 6" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
+
+          {current.field === "budget" && (
+            <FormField
+              control={form.control}
+              name="budget"
+              render={({ field }) => question(current.hint, (
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="What is your rough budget?" />
-                    </SelectTrigger>
-                  </FormControl>
+                  <SelectTrigger className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}>
+                    <SelectValue placeholder="Choose a range" />
+                  </SelectTrigger>
                   <SelectContent>
                     {BUDGETS.map((budget) => (
                       <SelectItem key={budget} value={budget}>
@@ -449,42 +432,76 @@ export function RequestQuoteForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <FormDescription>
-                  A rough range helps entertainers reply with realistic pricing.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              ))}
+            />
+          )}
 
-          <FormField
-            control={form.control}
-            name="details"
-            render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Tell us about the party</FormLabel>
-                <FormControl>
-                  <Textarea
-                    rows={5}
-                    placeholder="Theme, venue, timings, anything the entertainer should know…"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          </>}
+          {current.field === "details" && (
+            <FormField
+              control={form.control}
+              name="details"
+              render={({ field }) => question(current.hint, (
+                <Textarea
+                  rows={5}
+                  placeholder="Superhero theme, back garden, 2pm start…"
+                  className={`min-h-32 rounded-xl px-4 py-3 text-base ${CONTROL_INVALID}`}
+                  {...field}
+                />
+              ))}
+            />
+          )}
+
+          {current.field === "name" && (
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => question(current.hint, (
+                <Input autoComplete="name" placeholder="Alex Rivera" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
+
+          {current.field === "email" && (
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => question(current.hint, (
+                <Input type="email" autoComplete="email" placeholder="alex@example.com" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
+
+          {current.field === "phone" && (
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => question(current.hint, (
+                <Input type="tel" autoComplete="tel" placeholder="+1 555 010 2030" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+              ))}
+            />
+          )}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-4">
+        <div className="mt-7 flex items-center gap-3">
           {step > 0 && (
-            <Button type="button" variant="outline" size="lg" onClick={() => setStep(step - 1)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-12 flex-1 rounded-xl"
+              onClick={() => setStep((index) => Math.max(index - 1, 0))}
+            >
               Back
             </Button>
           )}
           {isLastStep ? (
-            <Button type="submit" size="lg" disabled={status === "sending"}>
+            <Button
+              key="send"
+              type="submit"
+              size="lg"
+              className="h-12 flex-1 rounded-xl"
+              disabled={status === "sending"}
+            >
               {status === "sending" ? (
                 <>
                   <Loader2 className="animate-spin" />
@@ -498,15 +515,23 @@ export function RequestQuoteForm({
               )}
             </Button>
           ) : (
-            <Button type="button" size="lg" onClick={() => void goNext()}>
-              Continue
+            <Button
+              key="next"
+              type="button"
+              size="lg"
+              className="h-12 flex-1 rounded-xl"
+              onClick={() => void goNext()}
+            >
+              Next
             </Button>
           )}
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="size-4 text-trust" />
-            We only share your details with entertainers who can serve your date.
-          </p>
         </div>
+
+        <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-trust" />
+          We only share your details with entertainers who can serve your date. Question {step + 1} of{" "}
+          {STEPS.length}.
+        </p>
       </form>
     </Form>
   );
