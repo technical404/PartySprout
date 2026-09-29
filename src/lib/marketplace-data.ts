@@ -205,8 +205,16 @@ export function parseNaturalSearch(query: string) {
   return query.trim() ? [query.trim()] : [];
 }
 
-export async function fetchCategories(): Promise<Category[]> {
-  const res = await fetch("/api/categories", live);
+/**
+ * `location` narrows each category's count to the city the visitor filtered by,
+ * so a filter panel never promises businesses that are not in their city.
+ */
+export async function fetchCategories(params: { location?: string } = {}): Promise<Category[]> {
+  const search = new URLSearchParams();
+  const location = params.location?.trim();
+  if (location) search.set("location", location);
+  const query = search.toString();
+  const res = await fetch(`/api/categories${query ? `?${query}` : ""}`, live);
   if (!res.ok) return [];
   const rows = (await res.json()) as Array<{
     slug: string;

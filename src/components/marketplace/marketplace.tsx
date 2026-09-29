@@ -34,7 +34,7 @@ export function SiteHeader() {
         <Brand />
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
           <Link to="/explore" className="nav-link">Explore</Link>
-          <Link to="/category/$slug" params={{ slug: "superheroes" }} className="nav-link">Categories</Link>
+          <Link to="/search" search={{ q: "", location: "" }} className="nav-link">Categories</Link>
           <Link to="/party-builder" className="nav-link">Party builder</Link>
           <Link to="/favorites" className="nav-link">Saved</Link>
           <Link to="/list-your-business" className="nav-link">For entertainers</Link>
@@ -307,7 +307,22 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
   summary: DirectorySummary | null;
 }) {
   const [categories, setCategories] = useState<Category[]>([]);
-  useEffect(() => { void fetchCategories().then(setCategories); }, []);
+  // A count is only useful if it describes the city the visitor filtered by, not
+  // the whole directory, so the categories are refetched from the same city
+  // filter the results use — debounced while the city is still being typed.
+  useEffect(() => {
+    const location = state.location;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void fetchCategories({ location }).then((rows) => {
+        if (!cancelled) setCategories(rows);
+      });
+    }, location ? 300 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [state.location]);
   const pricesAvailable = (summary?.pricedListings ?? 0) > 0;
   const activeCount = [state.category, state.location, state.priceMin, state.priceMax, state.ratingMin].filter(Boolean).length;
 
@@ -319,6 +334,11 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
 
     <fieldset>
       <legend className="mb-3 text-sm font-bold">Category</legend>
+      {state.location && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Counts are for businesses in {state.location} only.
+        </p>
+      )}
       <div className="space-y-2.5">
         <label className="flex cursor-pointer items-center gap-3 text-sm">
           <Checkbox checked={!state.category} onCheckedChange={(checked) => { if (checked) onChange({ category: "", page: 1 }); }} />
@@ -396,6 +416,36 @@ function CityBreakdown({ items, onPick }: { items: Vendor[]; onPick: (city: stri
   </div>;
 }
 
+/**
+ * True while a sticky bar should be out of the way. The bar slides away as the
+ * visitor scrolls down and returns as soon as they scroll up. It only ever
+ * reports true on the desktop breakpoint, which is where the results search bar
+ * is actually sticky — on smaller screens it scrolls off on its own.
+ */
+function useHideStickySearchBar() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    let last = window.scrollY;
+    const onScroll = () => {
+      const current = window.scrollY;
+      if (!desktop.matches) {
+        last = current;
+        setHidden(false);
+        return;
+      }
+      // Ignore sub-pixel jitter so the bar does not flicker while scrolling.
+      if (Math.abs(current - last) < 8) return;
+      setHidden(current > last && current > 120);
+      last = current;
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return hidden;
+}
+
 export function SearchResults({ title = "Find businesses", state, onChange, category, location }: {
   title?: string;
   /** Supplied by /search. Category and city landing pages leave it out. */
@@ -423,6 +473,7 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
   const [summary, setSummary] = useState<DirectorySummary | null>(null);
   const listRef = useRef<HTMLElement | null>(null);
   const { compareIds, clearCompare } = useSaved();
+  const searchBarHidden = useHideStickySearchBar();
 
   useEffect(() => { void fetchDirectorySummary().then(setSummary); }, []);
 
@@ -447,7 +498,13 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
   const activeFilters = [active.category, active.location, active.priceMin, active.priceMax, active.ratingMin].filter(Boolean).length;
 
   return <main className="min-h-screen bg-surface pb-24">
-    <div className="border-b bg-background/95 px-4 py-3 lg:sticky lg:top-0 lg:z-30 lg:backdrop-blur-xl">
+    <div
+      inert={searchBarHidden || undefined}
+      className={cn(
+        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-0 lg:z-30 lg:backdrop-blur-xl",
+        searchBarHidden && "-translate-y-full lg:pointer-events-none",
+      )}
+    >
       <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} /></div>
     </div>
     <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">

@@ -41,6 +41,7 @@ import {
   type Vendor,
 } from "@/lib/marketplace-data";
 import { SUPPORT_EMAIL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 const BUDGETS = [
   "Under $200",
@@ -79,6 +80,36 @@ const EMPTY_FORM: QuoteFormValues = {
   details: "",
 };
 
+/**
+ * The request is asked for in three short steps instead of one long form: the
+ * party, then the budget and details, then how to reach the family. Every step
+ * is validated before it can be left, so nobody reaches the end with a missing
+ * answer behind them.
+ */
+type QuoteStep = {
+  title: string;
+  description: string;
+  fields: Array<keyof QuoteFormValues>;
+};
+
+const STEPS: QuoteStep[] = [
+  {
+    title: "The party",
+    description: "What are we celebrating, and where?",
+    fields: ["city", "eventDate", "category", "guestCount", "childAge"],
+  },
+  {
+    title: "Budget and details",
+    description: "A rough range and anything the entertainer should know.",
+    fields: ["budget", "details"],
+  },
+  {
+    title: "How to reach you",
+    description: "So the entertainers can reply with a quote.",
+    fields: ["name", "email", "phone"],
+  },
+];
+
 export function RequestQuoteForm({
   vendor = null,
   defaultCategorySlug = "",
@@ -95,6 +126,7 @@ export function RequestQuoteForm({
   const [categories, setCategories] = useState<Category[]>([]);
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [serverError, setServerError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     void fetchCategories().then(setCategories);
@@ -109,6 +141,23 @@ export function RequestQuoteForm({
     resolver: zodResolver(quoteSchema),
     defaultValues: defaults,
   });
+
+  const isLastStep = step === STEPS.length - 1;
+
+  /** Only move on once the step being left has nothing left to answer. */
+  async function goNext() {
+    const valid = await form.trigger(STEPS[step].fields);
+    if (valid) setStep((current) => Math.min(current + 1, STEPS.length - 1));
+  }
+
+  /**
+   * When the whole form is submitted from the last step, a rejection from an
+   * earlier step would be invisible — so land the visitor back on that step.
+   */
+  function goToFirstProblem(problems: Array<keyof QuoteFormValues>) {
+    const index = STEPS.findIndex((item) => item.fields.some((field) => problems.includes(field)));
+    if (index >= 0) setStep(index);
+  }
 
   async function onSubmit(values: QuoteFormValues) {
     setStatus("sending");
@@ -129,12 +178,18 @@ export function RequestQuoteForm({
     });
 
     if (!result.ok) {
-      // Surface any field-level errors the server rejected.
+      // Surface any field-level errors the server rejected, and go back to the
+      // step that holds them so the messages are actually visible.
+      const rejected: Array<keyof QuoteFormValues> = [];
       for (const [field, message] of Object.entries(result.fields ?? {})) {
-        if (field in EMPTY_FORM) form.setError(field as keyof QuoteFormValues, { message });
+        if (field in EMPTY_FORM) {
+          form.setError(field as keyof QuoteFormValues, { message });
+          rejected.push(field as keyof QuoteFormValues);
+        }
       }
       setServerError(result.message);
       setStatus("idle");
+      goToFirstProblem(rejected);
       return;
     }
 
@@ -156,7 +211,7 @@ export function RequestQuoteForm({
           Expect replies by email{form.getValues("phone") ? " or phone" : ""} within a day or two.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
-          <Button variant="outline" onClick={() => setStatus("idle")}>
+          <Button variant="outline" onClick={() => { setStatus("idle"); setStep(0); }}>
             Send another request
           </Button>
           {!embedded && <Button asChild>
@@ -172,7 +227,9 @@ export function RequestQuoteForm({
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, (errors) =>
+          goToFirstProblem(Object.keys(errors) as Array<keyof QuoteFormValues>),
+        )}
         className={embedded ? "" : "rounded-2xl border bg-background p-6 shadow-sm sm:p-9"}
         noValidate
       >
@@ -202,7 +259,44 @@ export function RequestQuoteForm({
           </div>
         )}
 
+        <ol className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-3 text-sm">
+          {STEPS.map((item, index) => {
+            const done = index < step;
+            const current = index === step;
+            return (
+              <li key={item.title} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={index > step}
+                  aria-current={current ? "step" : undefined}
+                  onClick={() => setStep(index)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors",
+                    current ? "border-primary bg-primary-soft font-bold text-primary" : "border-border font-semibold text-muted-foreground",
+                    done && "hover:text-primary",
+                    index > step && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold",
+                      current ? "bg-primary text-primary-foreground" : "bg-muted",
+                    )}
+                  >
+                    {done ? <Check /> : index + 1}
+                  </span>
+                  {item.title}
+                </button>
+                {index < STEPS.length - 1 && <span aria-hidden className="h-px w-4 bg-border" />}
+              </li>
+            );
+          })}
+        </ol>
+
+        <p className="mb-5 text-sm text-muted-foreground">{STEPS[step].description}</p>
+
         <div className="grid gap-5 sm:grid-cols-2">
+          {step === 2 && <>
           <FormField
             control={form.control}
             name="name"
@@ -250,6 +344,8 @@ export function RequestQuoteForm({
             )}
           />
 
+          </>}
+          {step === 0 && <>
           <FormField
             control={form.control}
             name="city"
@@ -331,6 +427,8 @@ export function RequestQuoteForm({
             )}
           />
 
+          </>}
+          {step === 1 && <>
           <FormField
             control={form.control}
             name="budget"
@@ -376,22 +474,34 @@ export function RequestQuoteForm({
               </FormItem>
             )}
           />
+          </>}
         </div>
 
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Button type="submit" size="lg" disabled={status === "sending"}>
-            {status === "sending" ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Sending…
-              </>
-            ) : (
-              <>
-                <Send />
-                Send quote request
-              </>
-            )}
-          </Button>
+          {step > 0 && (
+            <Button type="button" variant="outline" size="lg" onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+          )}
+          {isLastStep ? (
+            <Button type="submit" size="lg" disabled={status === "sending"}>
+              {status === "sending" ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Send />
+                  Send quote request
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button type="button" size="lg" onClick={() => void goNext()}>
+              Continue
+            </Button>
+          )}
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="size-4 text-trust" />
             We only share your details with entertainers who can serve your date.

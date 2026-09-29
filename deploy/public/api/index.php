@@ -1123,6 +1123,19 @@ try {
 
     // --- directory ------------------------------------------------------
     if ($method === 'GET' && $path === '/api/categories') {
+        // The counts can be narrowed to a single city, using the same city rule
+        // the listing search uses, so a city filter never advertises numbers the
+        // visitor cannot actually reach.
+        // The city is normalised exactly as the listing search normalises it, so
+        // a "Dallas, TX" filter counts the same businesses it returns.
+        $location = trim(preg_replace('/,\s*[A-Z]{2}$/i', '', text($_GET['location'] ?? '')) ?? '');
+        $cityClause = '';
+        $countParams = [];
+        if ($location !== '') {
+            $cityClause = ' AND (ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)';
+            $like = '%' . $location . '%';
+            $countParams = [$like, $like, strtoupper($location)];
+        }
         $subs = [];
         foreach (fetch_all(
             $db,
@@ -1141,10 +1154,13 @@ try {
                     (SELECT COUNT(DISTINCT lc.listing_id)
                        FROM listing_categories lc
                        JOIN listings l ON l.id = lc.listing_id
-                      WHERE lc.category_id = c.id AND l.status = 'active') AS listing_count
+                       LEFT JOIN cities ci ON ci.id = l.city_id
+                       LEFT JOIN states s  ON s.id  = l.state_id
+                      WHERE lc.category_id = c.id AND l.status = 'active'{$cityClause}) AS listing_count
                FROM categories c
               WHERE c.is_active = 1
-              ORDER BY c.sort_order"
+              ORDER BY c.sort_order",
+            $countParams
         ) as $row) {
             $row['id'] = (int) $row['id'];
             $row['listing_count'] = (int) $row['listing_count'];

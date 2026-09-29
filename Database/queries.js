@@ -55,20 +55,30 @@ function subcategoriesByCategory() {
   return grouped;
 }
 
-function listCategories() {
+/**
+ * Categories with a live listing count. `location` narrows that count to one
+ * city using the same rule the listing search uses, so a filtered city never
+ * shows a number the visitor cannot actually reach.
+ */
+function listCategories({ location } = {}) {
   const subcategories = subcategoriesByCategory();
+  const city = String(location ?? '').trim();
+  const cityClause = city ? ' AND (ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)' : '';
+  const params = city ? [`%${city}%`, `%${city}%`, city.toUpperCase()] : [];
   return db
     .prepare(
       `SELECT c.id, c.slug, c.name, c.tagline, c.icon,
               (SELECT COUNT(DISTINCT lc.listing_id)
                  FROM listing_categories lc
                  JOIN listings l ON l.id = lc.listing_id
-                WHERE lc.category_id = c.id AND l.status = 'active') AS listing_count
+                 LEFT JOIN cities ci ON ci.id = l.city_id
+                 LEFT JOIN states s  ON s.id  = l.state_id
+                WHERE lc.category_id = c.id AND l.status = 'active'${cityClause}) AS listing_count
          FROM categories c
         WHERE c.is_active = 1
         ORDER BY c.sort_order`
     )
-    .all()
+    .all(...params)
     .map((row) => ({ ...row, subcategories: subcategories.get(row.slug) ?? [] }));
 }
 

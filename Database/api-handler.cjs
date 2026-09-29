@@ -570,7 +570,10 @@ async function handleApi(req, res) {
 
     // --- directory ------------------------------------------------------
     if (req.method === 'GET' && pathname === '/api/categories') {
-      return send(res, 200, queries.listCategories());
+      // The city is normalised exactly as the listing search normalises it, so a
+      // "Dallas, TX" filter counts the same businesses it returns.
+      const location = text(url.searchParams.get('location')).replace(/,\s*[A-Z]{2}$/i, '').trim();
+      return send(res, 200, queries.listCategories({ location }));
     }
 
     /**

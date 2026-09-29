@@ -40,7 +40,23 @@ function Section({ title, kicker, action, children }: { title: string; kicker: s
 export function ExplorePage() {
   const [primaryCategories, setPrimaryCategories] = useState<Category[]>([]);
   useEffect(() => { void fetchCategories().then(setPrimaryCategories); }, []);
-  return <main><div className="bg-surface py-14"><div className="mx-auto max-w-7xl px-6"><p className="font-bold text-primary">Explore every possibility</p><h1 className="mt-2 font-display text-4xl font-extrabold">What will make them light up?</h1><div className="mt-7 max-w-4xl"><SearchPanel compact /></div></div></div><Section title="Featured categories" kicker="The most-loved ways to celebrate"><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{primaryCategories.map((category)=><Link key={category.slug} to="/category/$slug" params={{slug:category.slug}} className="group grid grid-cols-[120px_1fr] overflow-hidden rounded-lg border bg-background"><img src={category.image} alt={category.name} className="h-full min-h-32 w-full object-cover transition group-hover:scale-105"/><div className="p-5"><h2 className="font-display text-xl font-extrabold">{category.name}</h2><p className="mt-2 text-sm text-muted-foreground">{category.description}</p><p className="mt-4 text-xs font-bold text-primary">{category.count} entertainers</p></div></Link>)}</div></Section><Footer/></main>; }
+  return <main><div className="bg-surface py-14"><div className="mx-auto max-w-7xl px-6"><p className="font-bold text-primary">Explore every possibility</p><h1 className="mt-2 font-display text-4xl font-extrabold">What will make them light up?</h1><div className="mt-7"><SearchPanel /></div></div></div><Section title="Featured categories" kicker="The most-loved ways to celebrate"><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{primaryCategories.map((category)=><Link key={category.slug} to="/category/$slug" params={{slug:category.slug}} className="group grid grid-cols-[120px_1fr] overflow-hidden rounded-lg border bg-background"><img src={category.image} alt={category.name} className="h-full min-h-32 w-full object-cover transition group-hover:scale-105"/><div className="p-5"><h2 className="font-display text-xl font-extrabold">{category.name}</h2><p className="mt-2 text-sm text-muted-foreground">{category.description}</p><p className="mt-4 text-xs font-bold text-primary">{category.count} entertainers</p></div></Link>)}</div></Section><Footer/></main>; }
+
+/**
+ * The site address a visitor actually recognises: no scheme, no "www." prefix.
+ * Shown as plain text, because the listing does not link out to the business.
+ */
+function websiteDomain(url: string): string {
+  const trimmed = url.trim();
+  try {
+    return new URL(trimmed).hostname.replace(/^www\./i, "");
+  } catch {
+    return (
+      trimmed.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[/?#].*$/, "") ||
+      trimmed
+    );
+  }
+}
 
 export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
   const [quote, setQuote] = useState(false);
@@ -62,11 +78,18 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
       </div>
     </section>
     <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-6 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3">
         <Button onClick={() => setQuote(true)}>Request quote</Button>
-        {vendor.website && <Button variant="outline" asChild><a href={vendor.website} target="_blank" rel="noreferrer">Website</a></Button>}
-        {vendor.phone && <Button variant="outline" asChild><a href={`tel:${vendor.phone}`}>{vendor.phone}</a></Button>}
-        <Button variant="ghost" asChild><Link to="/compare">Compare</Link></Button>
+        {vendor.website && (
+          <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium">
+            {websiteDomain(vendor.website)}
+          </span>
+        )}
+        {vendor.phone && (
+          <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium">
+            {vendor.phone}
+          </span>
+        )}
       </div>
     </div>
     <div className="mx-auto max-w-7xl px-6 py-12">

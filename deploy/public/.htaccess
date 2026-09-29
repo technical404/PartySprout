@@ -1,6 +1,11 @@
+DirectoryIndex index.php index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  RewriteRule ^assets/ - [L]
+  RewriteRule ^index\.php$ - [L]
 
   RewriteRule ^api(?:/.*)?$ api/index.php [L,QSA]
 
@@ -8,10 +13,11 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  RewriteRule ^ index.html [L]
+  RewriteRule ^ index.php [L]
 </IfModule>
 
 <IfModule mod_headers.c>
+  Header set Cache-Control "no-store, no-cache, must-revalidate"
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   Header set X-Frame-Options "SAMEORIGIN"
