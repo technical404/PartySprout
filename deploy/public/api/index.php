@@ -56,6 +56,8 @@ if (!defined('PARTYSPARK_LIB_ONLY')) {
 const SESSION_COOKIE = 'ps_session';
 const SESSION_DAYS = 30;
 const MAX_FIELD = 2000;
+/** What quote_requests.event_type can hold: VARCHAR(120). */
+const EVENT_TYPE_MAX = 120;
 const EMAIL_PATTERN = '/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/';
 /** PBKDF2-HMAC-SHA256. Node writes the same format, so hashes move either way. */
 const PBKDF2_ITERATIONS = 210000;
@@ -1060,10 +1062,15 @@ try {
         } elseif (strlen($email) > MAX_FIELD) {
             $errors['email'] = 'Email is too long.';
         }
-        foreach (['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'categorySlug', 'budget'] as $field) {
+        foreach (['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget'] as $field) {
             if (strlen(text($body[$field] ?? '')) > MAX_FIELD) {
                 $errors[$field] = 'Value is too long.';
             }
+        }
+        // event_type is narrower than the other free-text fields, so it gets its
+        // own column's limit: MySQL has to refuse what SQLite would accept.
+        if (strlen(text($body['eventType'] ?? '')) > EVENT_TYPE_MAX) {
+            $errors['eventType'] = 'Value is too long.';
         }
         if (strlen(text($body['details'] ?? '')) > 10000) {
             $errors['details'] = 'Message is too long.';
@@ -1082,8 +1089,8 @@ try {
         run_write(
             $db,
             'INSERT INTO quote_requests
-               (name, email, phone, city, event_date, guest_count, child_age, category_slug, budget, details, vendor_id, user_id, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+               (name, email, phone, city, event_date, guest_count, child_age, event_type, category_slug, budget, details, vendor_id, user_id, source)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $name,
                 $email,
@@ -1092,6 +1099,7 @@ try {
                 nullable_text($body['eventDate'] ?? ''),
                 nullable_text($body['guestCount'] ?? ''),
                 nullable_text($body['childAge'] ?? ''),
+                nullable_text($body['eventType'] ?? ''),
                 nullable_text($body['categorySlug'] ?? ''),
                 nullable_text($body['budget'] ?? ''),
                 nullable_text($body['details'] ?? ''),

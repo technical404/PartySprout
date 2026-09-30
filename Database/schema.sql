@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS quote_requests (
   event_date    TEXT,
   guest_count   TEXT,
   child_age     TEXT,
+  event_type    TEXT,
   category_slug TEXT,
   budget        TEXT,
   details       TEXT,

@@ -75,6 +75,7 @@ const parts = [
     'event_date',
     'guest_count',
     'child_age',
+    'event_type',
     'category_slug',
     'budget',
     'details',

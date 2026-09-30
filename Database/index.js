@@ -43,6 +43,9 @@ function migrate() {
   addColumn('listings', 'review_count', 'INTEGER');
   // Links a quote request to the account that sent it, when there was one.
   addColumn('quote_requests', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  // What the party is for ("Birthday (Child)", "Wedding Reception", …). It is
+  // asked before the entertainment category so the two cannot be confused.
+  addColumn('quote_requests', 'event_type', 'TEXT');
 }
 
 function addColumn(table, column, type) {

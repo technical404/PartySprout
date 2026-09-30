@@ -4,7 +4,8 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-01, production host + local SQLite (category audit, see iteration 7)
+- Last run: 2026-10-01, production host + local SQLite (quote wizard event type, see
+  iteration 8)
   (previous full local run: 2026-09-21, dev server on `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
@@ -46,6 +47,50 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-01 — iteration 8: the quote wizard asks what the party *is*
+
+The wizard's first question was "What are you celebrating?" but the options under it
+were the *entertainment categories*, so one step was answering two different
+questions. The event now has a step of its own — **"What type of event are you
+planning?"** — with the grouped **Popular** (15) / **All events** (28) list. The
+reference list was cut off just after "Baby Shower", so the remaining entries are the
+standard event set rather than a guess at what the screenshot held. The categories
+moved to the step behind it, **"What kind of entertainment are you looking for?"**,
+where they belong.
+
+Two more things the wizard was missing: **"Where is the party?"** now suggests cities
+as you type — the same `/api/cities` lookup the search panel uses, showing each match's
+business count — and **"When is the party?"** opens its picker from a click anywhere in
+the box, not only on the calendar glyph. The party builder asks the same date question,
+so its field got the same treatment.
+
+The answer travels the whole way: `quote_requests.event_type` (TEXT in SQLite,
+VARCHAR(120) in MySQL, so it has its own narrower limit in both validators), the POST
+body, and the joined summary lines the vendor lead list and "my quotes" print.
+
+```
+node scripts/verify-event-type-quote.cjs   ->  14/14   (column, POST, both readers)
+node scripts/verify-quote-form-live.mjs    ->  25/25   (browser, wizard, SQLite row)
+```
+
+| Check | Result |
+| --- | --- |
+| `.ohmyagent\tscheck.cmd` equivalent (`npx tsc --noEmit`) and `npm run build` | clean / succeeds |
+| Local browser: event question first, 15 popular + 28 all, categories on their own step | PASS |
+| Local browser: "dal" suggests `Dallas, TX 20 businesses` and picking it fills the field | PASS |
+| Local browser: date box is a pointer with the glyph stretched over it, one `showPicker` call, value unchanged | PASS |
+| Local browser: the wizard submits and the stored row keeps event type, city, category and date | PASS |
+| API: `eventType` stored verbatim; a request without one stores NULL; 120 chars accepted, 121 and 2500 rejected `422` | PASS |
+| Both readers (vendor leads, my quotes) return the event type | PASS |
+| Production: `ALTER TABLE quote_requests ADD COLUMN event_type VARCHAR(120) NULL` — 2 existing rows untouched | PASS |
+| Live deploy: `api/index.php` diff was only the event-type lines, shell only the asset hash | PASS |
+| Live site: the same browser walk against the deployed build | 12/12 |
+| Live submit stored `event_type="Birthday (Child)"`, `city="Dallas, TX"`, `category_slug="superheroes"`, `event_date="2026-12-05"` | PASS |
+
+The live probe row (`event-type-live@example.test`) was deleted again; production
+`quote_requests` is back to its 2 real rows. Both verify scripts sweep their probes by
+the `event-type-*@example.test` pattern, so an interrupted run cannot leave one behind.
 
 ### 2026-10-01 — iteration 7: the category on a card now comes from the business's own website
 

@@ -163,7 +163,7 @@ function QuoteRow({ quote }: { quote: QuoteRequestRow }) {
           {quote.vendor_name ? `For ${quote.vendor_name}` : "Sent to matching entertainers"}
         </p>
         <p className="text-sm text-muted-foreground">
-          {[quote.city, quote.event_date, quote.guest_count ? `${quote.guest_count} children` : "", quote.budget]
+          {[quote.event_type, quote.city, quote.event_date, quote.guest_count ? `${quote.guest_count} children` : "", quote.budget]
             .filter(Boolean).join(" · ")}
         </p>
       </div>
@@ -577,7 +577,7 @@ export function PartyBuilderPage() {
 
         <label className="grid gap-2 text-sm font-semibold">
           When is the party?
-          <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          <Input type="date" className="date-field" value={date} onChange={(event) => setDate(event.target.value)} />
         </label>
 
         <label className="grid gap-2 text-sm font-semibold">

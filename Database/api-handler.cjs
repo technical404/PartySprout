@@ -56,6 +56,8 @@ function readJsonBody(req, limit = 64 * 1024) {
 }
 
 const MAX_FIELD = 2000;
+/** What quote_requests.event_type can hold: VARCHAR(120) in MySQL. */
+const EVENT_TYPE_MAX = 120;
 const text = (value) => String(value ?? '').trim();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -145,9 +147,12 @@ function validateQuoteRequest(body) {
   else if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
   else if (email.length > MAX_FIELD) errors.email = 'Email is too long.';
 
-  for (const field of ['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'categorySlug', 'budget']) {
+  for (const field of ['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget']) {
     if (text(body[field]).length > MAX_FIELD) errors[field] = 'Value is too long.';
   }
+  // event_type is narrower than the other free-text fields, so it gets its own
+  // column's limit: SQLite would happily store what MySQL has to refuse.
+  if (text(body.eventType).length > EVENT_TYPE_MAX) errors.eventType = 'Value is too long.';
   if (text(body.details).length > 10000) errors.details = 'Message is too long.';
 
   return { errors, value: { ...body, name, email } };

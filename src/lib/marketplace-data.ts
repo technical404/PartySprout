@@ -324,6 +324,7 @@ export type QuoteRequestInput = {
   eventDate?: string;
   guestCount?: string;
   childAge?: string;
+  eventType?: string;
   categorySlug?: string;
   budget?: string;
   details?: string;
@@ -340,6 +341,7 @@ export type QuoteRequestRow = {
   event_date: string | null;
   guest_count: string | null;
   child_age: string | null;
+  event_type: string | null;
   category_slug: string | null;
   budget: string | null;
   details: string | null;

@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS quote_requests (
   event_date    VARCHAR(64) NULL,
   guest_count   VARCHAR(64) NULL,
   child_age     VARCHAR(64) NULL,
+  event_type    VARCHAR(120) NULL,
   category_slug VARCHAR(80) NULL,
   budget        VARCHAR(64) NULL,
   details       TEXT NULL,

@@ -35,9 +35,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Footer } from "./footer";
 import {
   fetchCategories,
+  fetchCitySuggestions,
   fetchVendor,
   submitQuoteRequest,
   type Category,
+  type City,
   type Vendor,
 } from "@/lib/marketplace-data";
 import { SUPPORT_EMAIL } from "@/lib/site";
@@ -51,6 +53,62 @@ const BUDGETS = [
   "Not sure yet",
 ];
 
+/**
+ * The event list the reference dropdown uses: a short "Popular" run, then every
+ * event type alphabetically. The two groups overlap on purpose, which is also
+ * why this one control is a native <select> — a Radix SelectItem value has to be
+ * unique inside its list, and the same party has to store the same string
+ * whichever group it was picked from.
+ */
+const POPULAR_EVENT_TYPES = [
+  "Birthday (Adult)",
+  "Birthday (Child)",
+  "Birthday (Teen)",
+  "Cocktail Party",
+  "Corporate Event",
+  "Dinner Party",
+  "Festival",
+  "Fundraiser",
+  "Holiday Party (Christmas)",
+  "House Party",
+  "Nonprofit Event",
+  "Personal Occasion",
+  "Surprise",
+  "Wedding Ceremony",
+  "Wedding Reception",
+];
+
+const ALL_EVENT_TYPES = [
+  "Anniversary Party",
+  "Baby Shower",
+  "Bachelor Party",
+  "Bachelorette Party",
+  "Bar Mitzvah",
+  "Bat Mitzvah",
+  "Birthday (Adult)",
+  "Birthday (Child)",
+  "Birthday (Teen)",
+  "Christening",
+  "Cocktail Party",
+  "Community Event",
+  "Corporate Event",
+  "Dinner Party",
+  "Engagement Party",
+  "Festival",
+  "Fundraiser",
+  "Graduation Party",
+  "Holiday Party (Christmas)",
+  "House Party",
+  "Nonprofit Event",
+  "Personal Occasion",
+  "Prom",
+  "Retirement Party",
+  "School Event",
+  "Surprise",
+  "Wedding Ceremony",
+  "Wedding Reception",
+];
+
 const quoteSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name."),
   email: z.string().trim().min(1, "Please enter your email.").email("Enter a valid email address."),
@@ -59,7 +117,8 @@ const quoteSchema = z.object({
   city: z.string().trim().min(2, "Which city is the party in?"),
   guestCount: z.string().trim(),
   childAge: z.string().trim(),
-  category: z.string().min(1, "Pick what you are celebrating."),
+  eventType: z.string().min(1, "Pick the type of event you are planning."),
+  category: z.string().min(1, "Pick the entertainment you are after."),
   budget: z.string().min(1, "Please pick an approximate budget."),
   details: z.string().trim().min(10, "Tell us a bit more — at least 10 characters."),
 });
@@ -74,6 +133,7 @@ const EMPTY_FORM: QuoteFormValues = {
   city: "",
   guestCount: "",
   childAge: "",
+  eventType: "",
   category: "",
   budget: "",
   details: "",
@@ -92,13 +152,18 @@ type QuoteStep = {
 };
 
 const FIRST_STEP: QuoteStep = {
-  field: "category",
-  question: "What are you celebrating?",
-  hint: "Pick the entertainment you have in mind.",
+  field: "eventType",
+  question: "What type of event are you planning?",
+  hint: "Pick the closest match — you can add the detail later.",
 };
 
 const STEPS: QuoteStep[] = [
   FIRST_STEP,
+  {
+    field: "category",
+    question: "What kind of entertainment are you looking for?",
+    hint: "Pick the entertainment you have in mind.",
+  },
   {
     field: "city",
     question: "Where is the party?",
@@ -206,6 +271,8 @@ export function RequestQuoteForm({
   embedded?: boolean;
 }) {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<City[]>([]);
+  const [cityOpen, setCityOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [serverError, setServerError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
@@ -223,6 +290,26 @@ export function RequestQuoteForm({
     resolver: zodResolver(quoteSchema),
     defaultValues: defaults,
   });
+
+  // City type-ahead, debounced exactly like the search panel's Where field.
+  const cityTerm = form.watch("city");
+  useEffect(() => {
+    const term = cityTerm.trim();
+    if (term.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void fetchCitySuggestions(term).then((rows) => {
+        if (!cancelled) setCitySuggestions(rows);
+      });
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [cityTerm]);
 
   const current = STEPS[step] ?? FIRST_STEP;
   const isLastStep = step === STEPS.length - 1;
@@ -255,6 +342,7 @@ export function RequestQuoteForm({
       eventDate: values.eventDate,
       guestCount: values.guestCount,
       childAge: values.childAge,
+      eventType: values.eventType,
       categorySlug: values.category,
       budget: values.budget,
       details: values.details,
@@ -354,6 +442,37 @@ export function RequestQuoteForm({
         <div key={step} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           <ProgressRing value={progress} />
 
+          {current.field === "eventType" && (
+            <FormField
+              control={form.control}
+              name="eventType"
+              render={({ field }) => question(current.hint, (
+                <select
+                  {...field}
+                  className={`${CONTROL_CLASS} ${CONTROL_INVALID} border border-input bg-transparent shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                >
+                  <option value="" disabled>
+                    Choose one
+                  </option>
+                  <optgroup label="Popular">
+                    {POPULAR_EVENT_TYPES.map((event) => (
+                      <option key={event} value={event}>
+                        {event}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All events">
+                    {ALL_EVENT_TYPES.map((event) => (
+                      <option key={event} value={event}>
+                        {event}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              ))}
+            />
+          )}
+
           {current.field === "category" && (
             <FormField
               control={form.control}
@@ -379,9 +498,49 @@ export function RequestQuoteForm({
             <FormField
               control={form.control}
               name="city"
-              render={({ field }) => question(current.hint, (
-                <Input autoComplete="address-level2" placeholder="Dallas, TX" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
-              ))}
+              render={({ field }) => (
+                // The suggestion list stands outside FormControl so the input itself
+                // keeps the id and aria-invalid the form wires up for it.
+                <div className="relative">
+                  <FormItem className="mt-6">
+                    <StepQuestion question={current.question} hint={current.hint} />
+                    <FormControl>
+                      <Input
+                        autoComplete="off"
+                        placeholder="Dallas, TX"
+                        className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}
+                        {...field}
+                        onChange={(event) => {
+                          field.onChange(event);
+                          setCityOpen(true);
+                        }}
+                        onFocus={() => setCityOpen(true)}
+                        onBlur={() => window.setTimeout(() => setCityOpen(false), 120)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    {cityOpen && citySuggestions.length > 0 && (
+                      <ul className="search-suggest" role="listbox">
+                        {citySuggestions.map((city) => (
+                          <li key={`${city.name}-${city.stateCode}`}>
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                field.onChange(city.label);
+                                setCityOpen(false);
+                              }}
+                            >
+                              <span>{city.label}</span>
+                              <span>{city.count} businesses</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </FormItem>
+                </div>
+              )}
             />
           )}
 
@@ -390,7 +549,22 @@ export function RequestQuoteForm({
               control={form.control}
               name="eventDate"
               render={({ field }) => question(current.hint, (
-                <Input type="date" min={todayISO()} className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input
+                  type="date"
+                  min={todayISO()}
+                  className={`date-field ${CONTROL_CLASS} ${CONTROL_INVALID}`}
+                  {...field}
+                  onClick={(event) => {
+                    // Chromium opens the picker from the stretched calendar glyph (see
+                    // .date-field in styles.css); Firefox and Safari have to be asked,
+                    // and whichever engine already opened it throws here instead.
+                    try {
+                      event.currentTarget.showPicker();
+                    } catch {
+                      /* the picker is already open */
+                    }
+                  }}
+                />
               ))}
             />
           )}

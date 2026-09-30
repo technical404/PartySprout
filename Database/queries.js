@@ -353,9 +353,9 @@ function createQuoteRequest(data) {
   const { lastInsertRowid } = db
     .prepare(
       `INSERT INTO quote_requests
-         (name, email, phone, city, event_date, guest_count, child_age, category_slug, budget, details,
+         (name, email, phone, city, event_date, guest_count, child_age, event_type, category_slug, budget, details,
           vendor_id, user_id, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       String(data.name).trim(),
@@ -365,6 +365,7 @@ function createQuoteRequest(data) {
       nullableText(data.eventDate),
       nullableText(data.guestCount),
       nullableText(data.childAge),
+      nullableText(data.eventType),
       nullableText(data.categorySlug),
       nullableText(data.budget),
       nullableText(data.details),

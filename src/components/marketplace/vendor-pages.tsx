@@ -291,7 +291,7 @@ function LeadRow({ lead }: { lead: QuoteRequestRow }) {
       <div>
         <p className="font-display text-lg font-extrabold">{lead.name}</p>
         <p className="text-sm text-muted-foreground">
-          {[lead.city, lead.event_date, lead.guest_count ? `${lead.guest_count} children` : "", lead.budget]
+          {[lead.event_type, lead.city, lead.event_date, lead.guest_count ? `${lead.guest_count} children` : "", lead.budget]
             .filter(Boolean).join(" · ") || "No party details supplied"}
         </p>
       </div>
