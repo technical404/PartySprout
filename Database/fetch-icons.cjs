@@ -8,6 +8,7 @@
  *   node Database/fetch-icons.cjs --force      # refetch every website
  *   node Database/fetch-icons.cjs --limit 20   # small test batch
  *   node Database/fetch-icons.cjs --verbose    # log the choice for every site
+ *   node Database/fetch-icons.cjs --only charactersforparty.com   # one site only
  *
  * A site that offers no usable icon is stored as '' ("checked, nothing found")
  * so later runs skip it instead of retrying forever. A site we could not reach
@@ -26,6 +27,9 @@ const FORCE = argv.includes('--force');
 const VERBOSE = argv.includes('--verbose');
 const limitArg = argv.indexOf('--limit');
 const LIMIT = limitArg !== -1 ? Number(argv[limitArg + 1]) : 0;
+/** --only example.com keeps just the websites containing that substring. */
+const onlyArg = argv.indexOf('--only');
+const ONLY = onlyArg === -1 ? null : String(argv[onlyArg + 1] || '').trim().toLowerCase();
 
 /** Accepts "example.com", "https://example.com/x" and everything in between. */
 function normalizeWebsite(raw) {
@@ -188,7 +192,8 @@ async function main() {
     )
     .all();
 
-  const pending = rows.filter((row) => FORCE || row.icon_url == null);
+  const matching = ONLY ? rows.filter((row) => String(row.website).toLowerCase().includes(ONLY)) : rows;
+  const pending = matching.filter((row) => FORCE || row.icon_url == null);
   const targets = LIMIT > 0 ? pending.slice(0, LIMIT) : pending;
 
   console.log(
