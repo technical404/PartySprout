@@ -341,13 +341,22 @@ async function main() {
     `category=${row?.category_slug} date=${row?.event_date}`,
   );
   // Sweep by pattern rather than by the exact email the form was filled with, so
-  // no probe row from any run of this script survives into the next one.
-  db.prepare("DELETE FROM quote_requests WHERE email LIKE 'event-type-%@example.test'").run();
-  const left = db
-    .prepare(
-      "SELECT COUNT(*) AS total FROM quote_requests WHERE email LIKE 'event-type-%@example.test'",
-    )
-    .get().total;
+  // no probe row from any run of this script survives into the next one. Clicking
+  // the last step twice can leave a second POST in flight, so let the dust settle
+  // and look again rather than reading the table the instant the browser closes.
+  const sweep = () =>
+    db.prepare("DELETE FROM quote_requests WHERE email LIKE 'event-type-%@example.test'").run();
+  const probesLeft = () =>
+    db
+      .prepare(
+        "SELECT COUNT(*) AS total FROM quote_requests WHERE email LIKE 'event-type-%@example.test'",
+      )
+      .get().total;
+  await sleep(2000);
+  sweep();
+  await sleep(1500);
+  sweep();
+  const left = probesLeft();
   check("the probe row was removed again", left === 0, `${left} probe row(s) left`);
   close();
 }
