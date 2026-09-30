@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS listings (
   email        TEXT,
   price_from   REAL,
   rating       REAL,
+  -- How many Google reviews `rating` averages. Kept as a column of its own: it
+  -- used to survive only inside the imported description ("… · 1381 Google
+  -- reviews"), so replacing a description with the business's own about text
+  -- silently turned every count into 0. NULL means the count is unknown.
+  review_count INTEGER,
   is_featured  INTEGER NOT NULL DEFAULT 0,
   -- Sponsored placement. Anything above 0 sorts ahead of the normal results in
   -- every category and for every sort order; 0 (the default) is a normal listing.

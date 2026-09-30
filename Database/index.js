@@ -38,6 +38,9 @@ function migrate() {
   // Stamped by Database/fetch-about.cjs once the description came from the
   // business's own about page, so later runs only retry what failed.
   addColumn('listings', 'about_fetched_at', 'TEXT');
+  // The Google review count behind `rating`. It used to be recoverable only by
+  // parsing the imported description, which the about-page fetcher replaced.
+  addColumn('listings', 'review_count', 'INTEGER');
   // Links a quote request to the account that sent it, when there was one.
   addColumn('quote_requests', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }

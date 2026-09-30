@@ -53,8 +53,8 @@ function main() {
   );
   const insertListing = db.prepare(
     `INSERT INTO listings
-       (name, slug, category_id, country_id, state_id, city_id, description, website, phone, price_from, rating, is_featured, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`
+       (name, slug, category_id, country_id, state_id, city_id, description, website, phone, price_from, rating, review_count, is_featured, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`
   );
   const addCat = db.prepare('INSERT OR IGNORE INTO listing_categories (listing_id, category_id) VALUES (?, ?)');
 
@@ -111,6 +111,8 @@ function main() {
       const descriptionParts = [];
       if (businessType) descriptionParts.push(businessType);
       if (address) descriptionParts.push(address);
+      // Kept in the description for readability, but stored in its own column
+      // too so that replacing the description cannot lose the count.
       if (reviews) descriptionParts.push(`${reviews} Google reviews`);
       const description = descriptionParts.join(' · ') || null;
 
@@ -130,6 +132,7 @@ function main() {
           phone,
           null,
           Number.isFinite(rating) ? rating : null,
+          Number.isFinite(reviews) ? reviews : null,
           featured
         );
         listing = { id: Number(lastInsertRowid), slug };

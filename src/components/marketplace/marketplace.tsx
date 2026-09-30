@@ -239,8 +239,11 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   </form>;
 }
 
-export function Rating({ value, reviews }: { value: number; reviews: number }) {
-  return <span className="inline-flex items-center gap-1 text-sm"><Star className="size-4 fill-rating text-rating" /><b>{value}</b><span className="text-muted-foreground">({reviews})</span></span>;
+export function Rating({ value, reviews }: { value: number; reviews: number | null }) {
+  // A count of 0 means "never captured", not "no reviews", so it is left off
+  // rather than printed as a rating that looks unrated.
+  const count = reviews && reviews > 0 ? `(${reviews})` : null;
+  return <span className="inline-flex items-center gap-1 text-sm"><Star className="size-4 fill-rating text-rating" /><b>{value}</b>{count && <span className="text-muted-foreground">{count}</span>}</span>;
 }
 
 export function FavoriteButton({ id, name }: { id: number; name: string }) {

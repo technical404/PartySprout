@@ -36,7 +36,8 @@ export type Vendor = {
   categories: string[];
   location: string;
   rating: number;
-  reviews: number;
+  /** Google review count behind `rating`, or null when it was never captured. */
+  reviews: number | null;
   price: number;
   website: string | null;
   phone: string | null;
@@ -57,6 +58,7 @@ export type ListingRow = {
   phone?: string | null;
   price_from?: number | null;
   rating?: number | null;
+  review_count?: number | null;
   is_featured?: number;
   category_name: string;
   category_slug: string;
@@ -180,7 +182,6 @@ function safeLogoUrl(value: string | null | undefined): string | null {
 
 export function mapVendor(row: ListingRow): Vendor {
   const location = [row.city_name, row.state_code].filter(Boolean).join(", ");
-  const reviewsMatch = String(row.description || "").match(/(\d+)\s+Google reviews/i);
   const extraCats = (row.categories || []).map((c) => c.name).filter(Boolean);
   return {
     id: row.id,
@@ -190,7 +191,7 @@ export function mapVendor(row: ListingRow): Vendor {
     categories: extraCats.length ? extraCats : [row.category_name],
     location,
     rating: Number(row.rating || 0),
-    reviews: reviewsMatch ? Number(reviewsMatch[1]) : 0,
+    reviews: row.review_count == null ? null : Number(row.review_count),
     price: Number(row.price_from || 0),
     website: row.website || null,
     phone: row.phone || null,
