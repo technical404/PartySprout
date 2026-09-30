@@ -4,10 +4,11 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-09-21, dev server on `http://localhost:8080` (vite dev + Node backend)
+- Last run: 2026-10-01, production host + local SQLite (category audit, see iteration 7)
+  (previous full local run: 2026-09-21, dev server on `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
-- Data: `Database/directory.db` (SQLite) — 10 categories, 491 imported listings, 351 cities
+- Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
 - Knowledge graph: `graphify-out/` — 1160 nodes, 1851 edges, 111 labelled communities
   (`GRAPH_TREE.html` collapsible tree, `graph.html` interactive map, `GRAPH_REPORT.md`, `manifest.json`)
 
@@ -45,6 +46,67 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-01 — iteration 7: the category on a card now comes from the business's own website
+
+A listing's category was whatever Google search happened to find the business
+first: the spreadsheet's `Category` column held the *search terms* used to scrape
+the directory, so ids 1-12 were all `superheroes` and a princess-and-clown company
+could be filed under `star-wars`. Crawling each business's own site and scoring it
+against all ten categories showed **141 of 437 reachable listings had zero support
+for the category they were filed under**.
+
+Two new scripts, both re-runnable:
+
+- `scripts/audit-listing-categories.cjs` — reads the homepage plus up to two in-site
+  pages that look like they list services, and writes the per-category scores and the
+  words behind them to `Database/category-audit.json`. Words match on boundaries, so
+  "thor" never fires on *author* and "elf" never on *self*.
+- `scripts/apply-category-audit.cjs` — relabels a listing only when its current
+  category scores ≤ 2 on its own site *and* another category scores ≥ 5, and adds
+  every category scoring ≥ 5. It never removes a category link: "the site never prints
+  the word" is weak evidence of absence. Re-running it reports 0 changes.
+
+Applied to `Database/directory.db` and to production MySQL
+(`Database/category-updates.sql`, 49 `UPDATE`s + 239 `INSERT IGNORE`s, loaded with
+a throwaway paramiko script):
+
+```
+474 listings had a website (of 507)   437 crawled   37 unreachable -> left untouched
+160 had no clear offer -> left untouched
+ 49 cards relabelled     239 categories added across 149 listings     0 removed
+category links 1419 -> 1658
+```
+
+| Check | Result |
+| --- | --- |
+| Local SQLite vs the pre-change snapshot: links lost / added | 0 / 239 |
+| Local: primaries moved, every new primary also a link of that listing | 49, 0 broken |
+| Local: 507 listings, no listing without a category, primary always among them | PASS |
+| Pinned listings #1, #9, #492 (pin_rank 1) unchanged | PASS |
+| The 16 `party-characters-for-kids-*` listings keep their category | PASS |
+| Production MySQL diffed against local after the load (updates/adds/removals) | 0 / 0 / 0 |
+| Live API: all 507 cards' `category_slug` equal the database | PASS |
+| Live API: all 10 `?category=` page totals equal the local link counts | PASS |
+| Live API: detail pages return the corrected category list | PASS |
+
+Category page counts moved to clowns 154, fairy 68, holidays 203, magicians 177,
+mascots 179, non-mascots 239, pirates 140, princesses 201, star-wars 143,
+superheroes 154. Businesses whose site could not be reached (403s, dead hosts,
+JS-only shells) were deliberately left alone rather than guessed at.
+
+### 2026-10-01 — iteration 6: a five-star listing keeps its review count
+
+The count was never a column — `marketplace-data.ts` scraped it out of the
+description with `/(\d+)\s+Google reviews/`, and `Database/fetch-about.cjs` later
+replaced those imported descriptions with each business's own prose, so every count
+silently became `0` while `rating` (a real column) stayed at 5. `review_count` is now
+a column in both schemas, filled by `scripts/backfill-review-counts.cjs`. **478 of the
+480 rated listings recovered** the right count (217 from descriptions, 261 from the
+`description-backup-*.json` snapshots, **0 disagreements**); 2 businesses genuinely
+have none and stay `NULL`, which the card renders as no `(0)` at all. Production was
+altered and loaded with `Database/review-count-updates.sql`; the live API returns
+`review_count` for all 507 rows, matching local exactly.
 
 ### 2026-09-21 — iteration 5: the PHP API runs against MySQL (gap closed locally)
 
