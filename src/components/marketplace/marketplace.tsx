@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BadgeCheck, Building2, CalendarDays, Compass, Filter, Heart, Home, MapPin, Menu, MessageCircle, Search, ShieldCheck, SlidersHorizontal, Star, UserRound, Users, X } from "lucide-react";
+import { BadgeCheck, Building2, CalendarDays, Compass, Filter, Heart, Home, MapPin, Menu, MessageCircle, Phone, Search, ShieldCheck, SlidersHorizontal, Star, UserRound, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -29,15 +29,17 @@ export function SiteHeader() {
   const closeAndLogout = () => void logout();
 
   return <>
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-40 flex items-center border-b border-border/70 bg-background/90 backdrop-blur-xl lg:min-h-24">
+      {/* The row is taller than 72px on desktop because of the Call us button, and
+          the results search bar sticks at lg:top-24 to sit under the header. The
+          desktop height therefore lives on the header itself, whose border is
+          inside that 96px, so the stuck bar is flush rather than 1px short. */}
+      <div className="mx-auto flex w-full min-h-18 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <Brand />
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
           <Link to="/explore" className="nav-link">Explore</Link>
           <Link to="/search" search={{ q: "", location: "" }} className="nav-link">Categories</Link>
           <Link to="/party-builder" className="nav-link">Party builder</Link>
-          <Link to="/favorites" className="nav-link">Saved</Link>
-          <Link to="/list-your-business" className="nav-link">For entertainers</Link>
         </nav>
         <div className="hidden items-center gap-2 sm:flex">
           {user ? <>
@@ -47,14 +49,18 @@ export function SiteHeader() {
             <Button variant="ghost" asChild><Link to="/login">Log in</Link></Button>
           )}
           <Button variant="outline" asChild><Link to="/list-your-business">List your business</Link></Button>
-          <Button asChild><Link to="/search" search={{ q: "", location: "" }}>Find businesses</Link></Button>
+          {/* 28px / 20px of padding, as asked, so this is the tallest thing in the
+              header. It rings: see .call-button in styles.css. Between 640px and
+              the desktop nav the row has no room for the words "Call us" as well,
+              so the handset and the number carry it there and the label, which is
+              always the full phrase, names the link. */}
+          <Button asChild className="call-button h-auto px-5 py-7"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" /><span className="hidden lg:inline">Call us</span>{" "}(641) 666-3945</a></Button>
         </div>
         <Sheet><SheetTrigger asChild><Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open menu"><Menu /></Button></SheetTrigger>
           <SheetContent><SheetHeader><SheetTitle><Brand /></SheetTitle><SheetDescription>Everything for an unforgettable party.</SheetDescription></SheetHeader>
             <nav className="mt-8 grid gap-2">
               <MobileLink to="/explore">Explore</MobileLink>
               <MobileLink to="/party-builder">Build my party</MobileLink>
-              <MobileLink to="/favorites">Saved entertainers</MobileLink>
               <MobileLink to="/list-your-business">List your business</MobileLink>
               {user ? <>
                 <MobileLink to={workspace}>Hi, {firstName}</MobileLink>
@@ -504,8 +510,8 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
     <div
       inert={searchBarHidden || undefined}
       className={cn(
-        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-0 lg:z-30 lg:backdrop-blur-xl",
-        searchBarHidden && "-translate-y-full lg:pointer-events-none",
+        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-24 lg:z-30 lg:backdrop-blur-xl",
+        searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_6rem)]",
       )}
     >
       <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} /></div>

@@ -4,9 +4,10 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-01, production host + local SQLite (quote wizard event type, see
-  iteration 8)
-  (previous full local run: 2026-09-21, dev server on `http://localhost:8080`)
+- Last run: 2026-10-02, local dev server in a real browser (nav and results bar, see
+  iteration 9)
+  (previous: 2026-10-01, production host + local SQLite, quote wizard event type —
+  iteration 8; full local run: 2026-09-21, dev server on `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -47,6 +48,42 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-02 — iteration 9: the nav calls you, and the results bar sits under the header
+
+The search bar on every listing page stuck at `top: 0` at `z-30` while the header is
+`z-40` and 72px tall, so it stuck *behind* the header and came back half-hidden — the
+"little sticky" that prompted this. It now sticks at `lg:top-24`, exactly the header's
+own height, and its slide-away moves it a full header-plus-itself out of the way. The
+desktop height moved onto the header element, whose border sits inside that 96px, so
+the bar is flush at rest *and* stuck: measured `bar.top = header.bottom = 96` in both
+states, with no jump when it catches.
+
+The nav lost **Saved** (desktop links and the mobile slide-out menu; the bottom bar and
+`/favorites` keep it) and **For entertainers**, since "List your business" already
+points at that page. **Find businesses** became a **Call us (641) 666-3945** `tel:`
+link with 28px / 20px of padding, a handset that rings and a halo that breathes (2.6s;
+`prefers-reduced-motion` stops both). That button is 76px tall — taller than the old
+72px header — which is why the header now grows to 96px on desktop. Between 640px and
+the desktop nav the row cannot also hold the words "Call us", so there the handset and
+the number carry it and `aria-label` keeps the full name.
+
+```
+node scripts/tmp-nav-sticky-check.mjs   ->  23/23   (temporary driver, deleted after the run)
+```
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| Bar at rest and stuck both measure `top=96`, header `bottom=96` — no jump, no overlap | PASS |
+| Scrolling down slides the bar fully out (`bottom=0`); scrolling up brings it back stuck | PASS |
+| Nav offers no Saved and no For entertainers; Explore, Categories, Party builder survive | PASS |
+| `tel:+16416663945`, padding exactly 28px / 20px, button 76px in a 96px header | PASS |
+| `call-halo` on the button and `call-ring` on the handset, both `running`; halo 0 → 14px, handset ±11° | PASS |
+| No page or header overflow at 640 / 768 / 1024 / 1280px | PASS |
+| At 640px the number stays, "Call us" hides, `aria-label` unchanged | PASS |
+| Mobile: bar not sticky and flush under the header; menu lost "Saved entertainers"; bottom bar keeps Saved | PASS |
+| No uncaught page errors | PASS |
 
 ### 2026-10-01 — iteration 8: the quote wizard asks what the party *is*
 

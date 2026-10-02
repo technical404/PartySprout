@@ -180,6 +180,26 @@ input.date-field::-webkit-calendar-picker-indicator {
     radial-gradient(circle at 80% 80%, color-mix(in oklab, var(--primary) 12%, transparent) 0 24%, transparent 26%);
 }
 .polaroid-frame { width: 100%; height: auto; display: block; }
+
+/* --- Nav "Call us" button ------------------------------------------------- */
+/* The phone handset rings and a halo breathes around the button. Slow, small and
+   off-beat enough to read as an invitation rather than a demand for attention;
+   the reduced-motion rule at the foot of this file stops both. */
+.call-button { animation: call-halo 2.6s ease-out infinite; }
+.call-icon { transform-origin: 50% 55%; animation: call-ring 2.6s ease-in-out infinite; }
+@keyframes call-halo {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent); }
+  70% { box-shadow: 0 0 0 14px color-mix(in oklab, var(--primary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent); }
+}
+@keyframes call-ring {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  62% { transform: rotate(-11deg); }
+  69% { transform: rotate(10deg); }
+  76% { transform: rotate(-7deg); }
+  83% { transform: rotate(4deg); }
+  92% { transform: rotate(0deg); }
+}
 /* Four fields on one row: What is a bit wider; Where / When / Kids share the rest. */
 @media (min-width:640px){ .search-shell{grid-template-columns:1.4fr 1fr minmax(11.5rem,1fr) .9fr;align-items:center}.search-shell > :nth-child(1),.search-shell > :nth-child(2),.search-shell > :nth-child(3),.search-shell > :nth-child(4),.search-shell > button,.search-shell > :last-child{grid-column:auto}.search-shell > button{grid-column:1/-1}.search-shell > :last-child{grid-column:1/-1}.search-shell-compact{grid-template-columns:2fr 1fr auto}.search-shell-compact > :nth-child(1),.search-shell-compact > :nth-child(2),.search-shell-compact > button{grid-column:auto}.vendor-card{grid-template-columns:220px minmax(0,1fr)}.vendor-image{height:100%;min-height:260px}.vendor-card-compact .vendor-image{min-height:190px}.vendor-card-compact{grid-template-columns:170px minmax(0,1fr)} }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}.marquee-track{animation:none}.flip-inner{transition:none}}
