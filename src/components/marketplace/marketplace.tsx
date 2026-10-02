@@ -29,12 +29,12 @@ export function SiteHeader() {
   const closeAndLogout = () => void logout();
 
   return <>
-    <header className="sticky top-0 z-40 flex items-center border-b border-border/70 bg-background/90 backdrop-blur-xl lg:min-h-24">
-      {/* The row is taller than 72px on desktop because of the Call us button, and
-          the results search bar sticks at lg:top-24 to sit under the header. The
-          desktop height therefore lives on the header itself, whose border is
-          inside that 96px, so the stuck bar is flush rather than 1px short. */}
-      <div className="mx-auto flex w-full min-h-18 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-40 flex h-18 items-center border-b border-border/70 bg-background/90 backdrop-blur-xl">
+      {/* The row is a fixed 72px and the results search bar sticks at lg:top-18 to
+          sit exactly under it. The height lives on the header, whose border is
+          inside those 72px, so the stuck bar is flush rather than a pixel out.
+          Keep the two numbers in step. */}
+      <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <Brand />
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
           <Link to="/explore" className="nav-link">Explore</Link>
@@ -49,12 +49,13 @@ export function SiteHeader() {
             <Button variant="ghost" asChild><Link to="/login">Log in</Link></Button>
           )}
           <Button variant="outline" asChild><Link to="/list-your-business">List your business</Link></Button>
-          {/* 28px / 20px of padding, as asked, so this is the tallest thing in the
-              header. It rings: see .call-button in styles.css. Between 640px and
-              the desktop nav the row has no room for the words "Call us" as well,
-              so the handset and the number carry it there and the label, which is
+          {/* Standard CTA proportions: 16px bold at desktop with 20px of side
+              padding, a touch smaller in the compact tablet range. It rings and
+              lifts on hover: see .call-button in styles.css. Between 640px and the
+              desktop nav the row has no room for the words "Call us" as well, so
+              there the handset and the number carry it and the label, which is
               always the full phrase, names the link. */}
-          <Button asChild className="call-button h-auto px-5 py-7"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" /><span className="hidden lg:inline">Call us</span>{" "}(641) 666-3945</a></Button>
+          <Button asChild className="call-button h-auto px-4 py-3 text-sm font-bold lg:px-5 lg:text-base"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" /><span className="hidden lg:inline">Call us</span>{" "}(641) 666-3945</a></Button>
         </div>
         <Sheet><SheetTrigger asChild><Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open menu"><Menu /></Button></SheetTrigger>
           <SheetContent><SheetHeader><SheetTitle><Brand /></SheetTitle><SheetDescription>Everything for an unforgettable party.</SheetDescription></SheetHeader>
@@ -510,8 +511,8 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
     <div
       inert={searchBarHidden || undefined}
       className={cn(
-        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-24 lg:z-30 lg:backdrop-blur-xl",
-        searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_6rem)]",
+        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-18 lg:z-30 lg:backdrop-blur-xl",
+        searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_4.5rem)]",
       )}
     >
       <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} /></div>

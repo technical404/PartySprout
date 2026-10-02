@@ -183,10 +183,24 @@ input.date-field::-webkit-calendar-picker-indicator {
 
 /* --- Nav "Call us" button ------------------------------------------------- */
 /* The phone handset rings and a halo breathes around the button. Slow, small and
-   off-beat enough to read as an invitation rather than a demand for attention;
-   the reduced-motion rule at the foot of this file stops both. */
-.call-button { animation: call-halo 2.6s ease-out infinite; }
+   off-beat enough to read as an invitation rather than a demand for attention.
+   Hovering settles the halo into a firm ring, deepens the purple, lifts the button
+   a couple of pixels and gives the handset one quick ring. The reduced-motion rule
+   at the foot of this file stops every part of it. */
+.call-button {
+  animation: call-halo 2.6s ease-out infinite;
+  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
 .call-icon { transform-origin: 50% 55%; animation: call-ring 2.6s ease-in-out infinite; }
+.call-button:hover {
+  animation: none;
+  background-color: color-mix(in oklab, var(--primary) 82%, black);
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 22px -10px color-mix(in oklab, var(--primary) 75%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--primary) 38%, transparent);
+}
+.call-button:hover .call-icon { animation: call-ring 0.6s ease-in-out; }
 @keyframes call-halo {
   0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent); }
   70% { box-shadow: 0 0 0 14px color-mix(in oklab, var(--primary) 0%, transparent); }

@@ -53,40 +53,43 @@ storing the same data, so it compares the engines rather than the databases.
 
 The search bar on every listing page stuck at `top: 0` at `z-30` while the header is
 `z-40` and 72px tall, so it stuck *behind* the header and came back half-hidden — the
-"little sticky" that prompted this. It now sticks at `lg:top-24`, exactly the header's
-own height, and its slide-away moves it a full header-plus-itself out of the way. The
-desktop height moved onto the header element, whose border sits inside that 96px, so
-the bar is flush at rest *and* stuck: measured `bar.top = header.bottom = 96` in both
-states, with no jump when it catches.
+"little sticky" that prompted this. It now sticks at `lg:top-18`, exactly the header's
+72px, and its slide-away moves it a full header-plus-itself out of the way. The height
+lives on the header element, whose border sits inside those 72px, so the bar is flush
+at rest *and* stuck: measured `bar.top = header.bottom = 72` in both states.
 
 The nav lost **Saved** (desktop links and the mobile slide-out menu; the bottom bar and
 `/favorites` keep it) and **For entertainers**, since "List your business" already
 points at that page. **Find businesses** became a **Call us (641) 666-3945** `tel:`
-link with 28px / 20px of padding, a handset that rings and a halo that breathes (2.6s;
-`prefers-reduced-motion` stops both). That button is 76px tall — taller than the old
-72px header — which is why the header now grows to 96px on desktop. Between 640px and
-the desktop nav the row cannot also hold the words "Call us", so there the handset and
-the number carry it and `aria-label` keeps the full name.
+link — 16px bold on 12px / 20px of padding, 246×48px, so it stands at the same height
+as the buttons beside it. It rings and breathes (2.6s) and, on hover, settles the halo
+into a 3px ring, deepens the purple, lifts 2px and gives the handset one 0.6s ring;
+`prefers-reduced-motion` stops every part of it. Between 640px and the desktop nav the
+row cannot also hold the words "Call us", so there the handset and the number carry it
+at a slightly smaller size and `aria-label` keeps the full name.
 
-The home page's sticky journey stack pins to fixed offsets that had been measured
-against a 72px header, so its three cards moved down by the same 24px (100/215/330 →
-124/239/354). Measured back to the original 28px gap under the header, with the 115px
-stacking rhythm intact.
+An earlier cut of the button used the 28px / 20px padding as first specified, which
+made it 76px tall and pushed the header to 96px — and dragged the home page's sticky
+journey cards with it, since their offsets are measured against the header. At the
+standard CTA size the header is back to its original 72px and the cards are back at
+100/215/330 with their 28px gap and 115px stacking rhythm.
 
 ```
-node scripts/tmp-nav-sticky-check.mjs   ->  23/23   (temporary driver, deleted after the run)
+node scripts/tmp-cta-check.mjs   ->  20/20   (temporary driver, deleted after the run)
 ```
 
 | Check | Result |
 | --- | --- |
 | `npx tsc --noEmit` and `npm run build` | clean / succeeds |
-| Bar at rest and stuck both measure `top=96`, header `bottom=96` — no jump, no overlap | PASS |
-| Scrolling down slides the bar fully out (`bottom=0`); scrolling up brings it back stuck | PASS |
+| Bar at rest and stuck both measure `top=72`, header `bottom=72` — no jump, no overlap | PASS |
+| Scrolling down slides the bar fully out (`bottom=0`); scrolling up brings it back flush | PASS |
 | Nav offers no Saved and no For entertainers; Explore, Categories, Party builder survive | PASS |
-| `tel:+16416663945`, padding exactly 28px / 20px, button 76px in a 96px header | PASS |
+| Button is 246×48px, 16px bold, padding `12px 20px 12px 20px`, `tel:+16416663945` | PASS |
+| Hover deepens the purple, lifts 2px, turns the halo into a 3px ring and rings the handset once for 0.6s | PASS |
+| Releasing the hover restores the resting background and position | PASS |
 | `call-halo` on the button and `call-ring` on the handset, both `running`; halo 0 → 14px, handset ±11° | PASS |
-| No page or header overflow at 640 / 768 / 1024 / 1280px | PASS |
-| Home page journey cards keep their 28px gap under the taller header and still stack 115px apart | PASS |
+| No page or header overflow at 640 / 768 / 1024 / 1280px; the full label returns at the desktop nav | PASS |
+| Home page journey cards back at 100/215/330 with their 28px gap under the 72px header | PASS |
 | At 640px the number stays, "Call us" hides, `aria-label` unchanged | PASS |
 | Mobile: bar not sticky and flush under the header; menu lost "Saved entertainers"; bottom bar keeps Saved | PASS |
 | No uncaught page errors | PASS |
