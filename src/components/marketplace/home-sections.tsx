@@ -334,7 +334,7 @@ export function CelebrationJourneySection() {
       </div>
 
       <div className="journey-stack mx-auto max-w-7xl px-4 sm:px-6">
-        <article className="journey-card relative z-10 flex flex-col overflow-hidden bg-primary-soft xl:sticky xl:top-[100px] xl:flex-row">
+        <article className="journey-card relative z-10 flex flex-col overflow-hidden bg-primary-soft xl:sticky xl:top-[124px] xl:flex-row">
           <div className="w-full p-8 lg:w-1/2 lg:p-12">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 1</p>
             <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Browse and compare</h3>
@@ -374,7 +374,7 @@ export function CelebrationJourneySection() {
           </div>
         </article>
 
-        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_14%,white)] xl:sticky xl:top-[215px] xl:flex-row">
+        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_14%,white)] xl:sticky xl:top-[239px] xl:flex-row">
           <div className="w-full p-8 lg:w-1/2 lg:p-12">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 2</p>
             <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Book securely</h3>
@@ -440,7 +440,7 @@ export function CelebrationJourneySection() {
           </div>
         </article>
 
-        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_22%,white)] xl:sticky xl:top-[330px] xl:flex-row">
+        <article className="journey-card relative z-10 flex flex-col bg-[color-mix(in_oklab,var(--primary)_22%,white)] xl:sticky xl:top-[354px] xl:flex-row">
           <div className="w-full p-8 lg:w-1/2 lg:p-12">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary lg:hidden">Step 3</p>
             <h3 className="font-display text-2xl font-extrabold text-primary md:text-4xl">Enjoy your event</h3>

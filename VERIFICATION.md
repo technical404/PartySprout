@@ -68,6 +68,11 @@ link with 28px / 20px of padding, a handset that rings and a halo that breathes 
 the desktop nav the row cannot also hold the words "Call us", so there the handset and
 the number carry it and `aria-label` keeps the full name.
 
+The home page's sticky journey stack pins to fixed offsets that had been measured
+against a 72px header, so its three cards moved down by the same 24px (100/215/330 →
+124/239/354). Measured back to the original 28px gap under the header, with the 115px
+stacking rhythm intact.
+
 ```
 node scripts/tmp-nav-sticky-check.mjs   ->  23/23   (temporary driver, deleted after the run)
 ```
@@ -81,6 +86,7 @@ node scripts/tmp-nav-sticky-check.mjs   ->  23/23   (temporary driver, deleted a
 | `tel:+16416663945`, padding exactly 28px / 20px, button 76px in a 96px header | PASS |
 | `call-halo` on the button and `call-ring` on the handset, both `running`; halo 0 → 14px, handset ±11° | PASS |
 | No page or header overflow at 640 / 768 / 1024 / 1280px | PASS |
+| Home page journey cards keep their 28px gap under the taller header and still stack 115px apart | PASS |
 | At 640px the number stays, "Call us" hides, `aria-label` unchanged | PASS |
 | Mobile: bar not sticky and flush under the header; menu lost "Saved entertainers"; bottom bar keeps Saved | PASS |
 | No uncaught page errors | PASS |
