@@ -39,7 +39,7 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
           <Link to="/explore" className="nav-link">Explore</Link>
           <Link to="/search" search={{ q: "", location: "" }} className="nav-link">Categories</Link>
-          <Link to="/party-builder" className="nav-link">Party builder</Link>
+          <Link to="/request-quote" className="nav-link">Request a quote</Link>
         </nav>
         <div className="hidden items-center gap-2 sm:flex">
           {user ? <>
@@ -61,7 +61,7 @@ export function SiteHeader() {
           <SheetContent><SheetHeader><SheetTitle><Brand /></SheetTitle><SheetDescription>Everything for an unforgettable party.</SheetDescription></SheetHeader>
             <nav className="mt-8 grid gap-2">
               <MobileLink to="/explore">Explore</MobileLink>
-              <MobileLink to="/party-builder">Build my party</MobileLink>
+              <MobileLink to="/request-quote">Request a quote</MobileLink>
               <MobileLink to="/list-your-business">List your business</MobileLink>
               {user ? <>
                 <MobileLink to={workspace}>Hi, {firstName}</MobileLink>
@@ -74,7 +74,7 @@ export function SiteHeader() {
   </>;
 }
 
-type MobileLinkTarget = "/explore" | "/party-builder" | "/favorites" | "/vendor/dashboard" | "/account" | "/login" | "/list-your-business" | "/admin";
+type MobileLinkTarget = "/explore" | "/request-quote" | "/favorites" | "/vendor/dashboard" | "/account" | "/login" | "/list-your-business" | "/admin";
 
 function MobileLink({ to, children }: { to: MobileLinkTarget; children: ReactNode }) {
   return <Link to={to} className="rounded-lg px-4 py-3 text-base font-semibold hover:bg-muted">{children}</Link>;

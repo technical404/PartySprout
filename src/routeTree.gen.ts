@@ -28,7 +28,6 @@ import { Route as MagiciansRouteImport } from './routes/magicians'
 import { Route as MascotsRouteImport } from './routes/mascots'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NonMascotCharactersRouteImport } from './routes/non-mascot-characters'
-import { Route as PartyBuilderRouteImport } from './routes/party-builder'
 import { Route as PiratesRouteImport } from './routes/pirates'
 import { Route as PrincessesRouteImport } from './routes/princesses'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -154,11 +153,6 @@ const MessagesRoute = MessagesRouteImport.update({
 const NonMascotCharactersRoute = NonMascotCharactersRouteImport.update({
   id: '/non-mascot-characters',
   path: '/non-mascot-characters',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PartyBuilderRoute = PartyBuilderRouteImport.update({
-  id: '/party-builder',
-  path: '/party-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PiratesRoute = PiratesRouteImport.update({
@@ -341,7 +335,6 @@ export interface FileRoutesByFullPath {
   '/mascots': typeof MascotsRoute
   '/messages': typeof MessagesRoute
   '/non-mascot-characters': typeof NonMascotCharactersRoute
-  '/party-builder': typeof PartyBuilderRoute
   '/pirates': typeof PiratesRoute
   '/princesses': typeof PrincessesRouteWithChildren
   '/privacy': typeof PrivacyRoute
@@ -393,7 +386,6 @@ export interface FileRoutesByTo {
   '/mascots': typeof MascotsRoute
   '/messages': typeof MessagesRoute
   '/non-mascot-characters': typeof NonMascotCharactersRoute
-  '/party-builder': typeof PartyBuilderRoute
   '/pirates': typeof PiratesRoute
   '/privacy': typeof PrivacyRoute
   '/quotes': typeof QuotesRoute
@@ -442,7 +434,6 @@ export interface FileRoutesById {
   '/mascots': typeof MascotsRoute
   '/messages': typeof MessagesRoute
   '/non-mascot-characters': typeof NonMascotCharactersRoute
-  '/party-builder': typeof PartyBuilderRoute
   '/pirates': typeof PiratesRoute
   '/princesses': typeof PrincessesRouteWithChildren
   '/privacy': typeof PrivacyRoute
@@ -497,7 +488,6 @@ export interface FileRouteTypes {
     | '/mascots'
     | '/messages'
     | '/non-mascot-characters'
-    | '/party-builder'
     | '/pirates'
     | '/princesses'
     | '/privacy'
@@ -549,7 +539,6 @@ export interface FileRouteTypes {
     | '/mascots'
     | '/messages'
     | '/non-mascot-characters'
-    | '/party-builder'
     | '/pirates'
     | '/privacy'
     | '/quotes'
@@ -597,7 +586,6 @@ export interface FileRouteTypes {
     | '/mascots'
     | '/messages'
     | '/non-mascot-characters'
-    | '/party-builder'
     | '/pirates'
     | '/princesses'
     | '/privacy'
@@ -651,7 +639,6 @@ export interface RootRouteChildren {
   MascotsRoute: typeof MascotsRoute
   MessagesRoute: typeof MessagesRoute
   NonMascotCharactersRoute: typeof NonMascotCharactersRoute
-  PartyBuilderRoute: typeof PartyBuilderRoute
   PiratesRoute: typeof PiratesRoute
   PrincessesRoute: typeof PrincessesRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
@@ -805,13 +792,6 @@ declare module '@tanstack/react-router' {
       path: '/non-mascot-characters'
       fullPath: '/non-mascot-characters'
       preLoaderRoute: typeof NonMascotCharactersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/party-builder': {
-      id: '/party-builder'
-      path: '/party-builder'
-      fullPath: '/party-builder'
-      preLoaderRoute: typeof PartyBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pirates': {
@@ -1149,7 +1129,6 @@ const rootRouteChildren: RootRouteChildren = {
   MascotsRoute: MascotsRoute,
   MessagesRoute: MessagesRoute,
   NonMascotCharactersRoute: NonMascotCharactersRoute,
-  PartyBuilderRoute: PartyBuilderRoute,
   PiratesRoute: PiratesRoute,
   PrincessesRoute: PrincessesRouteWithChildren,
   PrivacyRoute: PrivacyRoute,

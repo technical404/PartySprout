@@ -12,9 +12,8 @@ import { SUPPORT_EMAIL } from "@/lib/site";
 import heroImage from "@/assets/party-hero.jpg";
 
 /**
- * Marketing and browsing pages. The account, vendor, admin, saved, compare,
- * quote and party-builder screens live in their own modules so each file stays
- * about one job.
+ * Marketing and browsing pages. The account, vendor, admin, saved, compare and
+ * quote screens live in their own modules so each file stays about one job.
  */
 
 export function HomePage() {

@@ -4,11 +4,12 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-05, local dev server and the live site in a real browser (the site
-  renamed to Hire Party Characters, see iteration 11)
-  (previous: the logo mark in the header, footer and favicon — iteration 10; nav and
-  results bar — iteration 9; production host + local SQLite, quote wizard event type —
-  iteration 8; full local run: 2026-09-21, dev server on `http://localhost:8080`)
+- Last run: 2026-10-05, local dev server and the live site in a real browser (Party
+  builder removed and the nav given Request a quote, see iteration 12)
+  (previous: the site renamed to Hire Party Characters — iteration 11; the logo mark in
+  the header, footer and favicon — iteration 10; nav and results bar — iteration 9;
+  production host + local SQLite, quote wizard event type — iteration 8; full local run:
+  2026-09-21, dev server on `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -49,6 +50,46 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-05 — iteration 12: Party builder goes, Request a quote takes its place
+
+The nav's third link was **Party builder** (`/party-builder`). The page was real — it
+queried the live directory by category, city, date, children and budget and handed the
+answers to the quote form — but it asked the **same questions the quote form asks**, so
+it competed with the form instead of feeding it. The page, its route and its component
+are gone, and the nav now links **Request a quote** (`/request-quote`) in that slot, on
+desktop and in the mobile slide-out menu. The header stays 72px and the other links
+(Explore, Categories) are untouched.
+
+Removing it needed more than deleting a file:
+
+- `PartyBuilderPage` lived in `account-pages.tsx`; its block and the imports only it
+  used (`fetchCategories`, `fetchCitySuggestions`, `fetchListings`, `City`, `Sparkles`,
+  `WandSparkles`, `BUILDER_BUDGETS`) are gone. The rest of that session builder stays.
+- `src/routeTree.gen.ts` is generated, but `npm run build` regenerates it — the route
+  disappears from the tree without hand-editing, which `tsc` then confirms.
+- `scripts/verify-quote-form-live.mjs` asserted on the builder's date field, so that
+  check is removed with the page rather than left to fail.
+
+`/party-builder` is now an unknown path, so the SPA rewrite falls through to the 404
+page. The 404 route raises a React hydration warning (#418) — but so does a path that
+never existed, so that belongs to the 404 route and is **not** something this change
+introduced. Worth a look on its own; recorded here so it is not mistaken for fallout.
+
+```
+node scripts/tmp-nav-check.mjs https://hirepartycharacters.com   ->  9/9   (live)
+```
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| No `party-builder` or `PartyBuilder` reference left under `src/` | 0 |
+| Desktop nav is Explore, Categories, Request a quote — no Party builder | PASS |
+| Mobile menu is Explore, Request a quote, List your business — no Build my party | PASS |
+| The Request a quote link resolves to `/request-quote` and opens the quote page | PASS |
+| The header is still 72px | PASS |
+| `/party-builder` no longer serves a working page (404, no quote form) | PASS |
+| Live: the same checks against `hirepartycharacters.com` | 9/9 |
 
 ### 2026-10-05 — iteration 11: the site is called Hire Party Characters
 
@@ -464,9 +505,10 @@ by a check above.
 5. **collection pages** → **FIXED.** `/quotes` lists the requests the signed-in user
    actually sent (`/api/my-quotes`); `/compare` compares the businesses actually
    selected.
-6. **party builder** → **FIXED (as a shortlist tool).** `/party-builder` collects city,
-   date, children, category, queries the live directory and hands off to the real quote
-   form. It never invents a budget total.
+6. **party builder** → **REMOVED (iteration 12).** It was fixed as a shortlist tool, but
+   it duplicated the quote form's own city/date/type answers, so the page and its route
+   are gone. The nav now links **Request a quote** in its place, and `/party-builder`
+   falls through the SPA rewrite to the catch-all not-found page like any unknown path.
 7. **hero search extras** → **FIXED.** Date and children now travel in the URL
    (`/search?date=…&kids=…`), the results banner offers a quote request with them
    prefilled, and the "we found" chips are gone.

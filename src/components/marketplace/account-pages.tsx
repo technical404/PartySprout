@@ -1,15 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  AlertCircle, Check, Heart, Loader2, LogOut, Scale, Send, Sparkles, WandSparkles,
+  AlertCircle, Check, Heart, Loader2, LogOut, Scale, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Footer } from "./footer";
 import { Rating, VendorCard, VendorLogo } from "./marketplace";
 import {
-  fetchCategories, fetchCitySuggestions, fetchListings, fetchListingsByIds, fetchMyQuoteRequests,
-  type Category, type City, type QuoteRequestRow, type Vendor,
+  fetchListingsByIds, fetchMyQuoteRequests,
+  type Category, type QuoteRequestRow, type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
 import { useSession } from "@/lib/session";
@@ -498,131 +498,6 @@ export function QuotesPage() {
           <p className="mt-6 text-sm text-muted-foreground">{quotes.length} request{quotes.length === 1 ? "" : "s"} on record.</p>
           <ul className="mt-4 space-y-4">{quotes.map((quote) => <QuoteRow key={quote.id} quote={quote} />)}</ul>
         </>}
-    </div>
-    <Footer />
-  </main>;
-}
-
-/* ------------------------------------------------------------------------- */
-/* Party builder                                                              */
-/* ------------------------------------------------------------------------- */
-
-const BUILDER_BUDGETS = ["Under $200", "$200 – $400", "$400 – $700", "$700 – $1,000", "$1,000+", "Not sure yet"];
-
-/**
- * The builder is a shortlist tool, not a price calculator: it filters the live
- * directory by what the parent wants and hands the same answers to the quote
- * request. It never invents a total.
- */
-export function PartyBuilderPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
-  const [category, setCategory] = useState("");
-  const [city, setCity] = useState("");
-  const [date, setDate] = useState("");
-  const [kids, setKids] = useState("");
-  const [budget, setBudget] = useState("");
-  const [matches, setMatches] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-
-  useEffect(() => { void fetchCategories().then(setCategories); }, []);
-
-  useEffect(() => {
-    const term = city.trim();
-    if (term.length < 2) { setCities([]); return; }
-    let cancelled = false;
-    const timer = setTimeout(() => { void fetchCitySuggestions(term).then((rows) => { if (!cancelled) setCities(rows); }); }, 180);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [city]);
-
-  async function find(event: React.FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setSearched(true);
-    const data = await fetchListings({ category, location: city, pageSize: 6 });
-    setMatches(data.items);
-    setLoading(false);
-  }
-
-  const query = { city, date, kids, category };
-
-  return <main className="min-h-screen bg-surface pb-24">
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-      <div className="max-w-3xl">
-        <p className="font-bold text-primary">Build my party</p>
-        <h1 className="mt-2 font-display text-4xl font-extrabold sm:text-5xl">Tell us the party. We find the people.</h1>
-        <p className="mt-4 text-lg leading-8 text-muted-foreground">
-          Pick the entertainment, the city, the date and how many children are coming. You will get a
-          shortlist from the live directory and can send one quote request covering all of it.
-        </p>
-      </div>
-
-      <form onSubmit={find} className="mt-9 grid gap-5 rounded-2xl border bg-background p-6 sm:p-8 lg:grid-cols-2" noValidate>
-        <label className="grid gap-2 text-sm font-semibold">
-          What kind of entertainment?
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-            <option value="">Anything that fits</option>
-            {categories.map((option) => <option key={option.slug} value={option.slug}>{option.name} ({option.count})</option>)}
-          </select>
-        </label>
-
-        <label className="grid gap-2 text-sm font-semibold">
-          Which city?
-          <Input value={city} onChange={(event) => setCity(event.target.value)} list="builder-city-options" placeholder="Dallas" autoComplete="off" />
-          <datalist id="builder-city-options">
-            {cities.map((option) => <option key={`${option.name}-${option.stateCode}`} value={option.name}>{option.label}</option>)}
-          </datalist>
-        </label>
-
-        <label className="grid gap-2 text-sm font-semibold">
-          When is the party?
-          <Input type="date" className="date-field" value={date} onChange={(event) => setDate(event.target.value)} />
-        </label>
-
-        <label className="grid gap-2 text-sm font-semibold">
-          How many children?
-          <Input type="number" min="1" value={kids} onChange={(event) => setKids(event.target.value)} placeholder="15" />
-        </label>
-
-        <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
-          Rough budget
-          <select value={budget} onChange={(event) => setBudget(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-            <option value="">Not sure yet</option>
-            {BUILDER_BUDGETS.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-          <span className="text-xs font-normal text-muted-foreground">
-            We pass this to entertainers so their quotes are realistic — it is not a filter, because
-            most businesses quote per party rather than publish a fixed price.
-          </span>
-        </label>
-
-        <div className="lg:col-span-2">
-          <Button type="submit" size="lg" disabled={loading}>{loading ? <><Loader2 className="animate-spin" />Finding…</> : <><WandSparkles />Find entertainers</>}</Button>
-        </div>
-      </form>
-
-      {searched && <section className="mt-10">
-        <h2 className="font-display text-2xl font-extrabold">
-          {loading ? "Looking through the directory…" : matches.length > 0 ? `${matches.length} businesses fit so far` : "No business matches those choices yet"}
-        </h2>
-        {!loading && matches.length === 0 && <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-          Try a wider city or leave the entertainment type open — then send a quote request and let
-          entertainers tell you what they can do.
-        </p>}
-        {matches.length > 0 && <>
-          <div className="mt-6 grid gap-5 lg:grid-cols-2">{matches.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} />)}</div>
-          <div className="mt-8 flex flex-wrap items-center gap-4 rounded-2xl border bg-background p-6">
-            <Sparkles className="size-5 text-primary" />
-            <p className="mr-auto text-sm">
-              Happy with these? Send one request with your date, city{kids ? `, ${kids} children` : ""}
-              {budget ? ` and the ${budget} budget` : ""}.
-            </p>
-            <Button asChild><Link to="/request-quote" search={query}><Send />Send one quote request</Link></Button>
-            <Button variant="outline" asChild><Link to="/search" search={{ q: "", location: city }}>See all results</Link></Button>
-          </div>
-        </>}
-      </section>}
     </div>
     <Footer />
   </main>;

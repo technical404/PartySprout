@@ -305,18 +305,6 @@ async function main() {
     console.log(`  page errors: ${pageErrors.join(" | ") || "none"}`);
   }
 
-  // The party builder asks the same "When is the party?" question, so its date
-  // box gets the same treatment.
-  await page.goto(`${BASE}/party-builder`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(1500);
-  const builderDate = page.locator('input[type="date"]').first();
-  check(
-    "the party builder's date box is clickable end to end",
-    ((await builderDate.getAttribute("class")) ?? "").includes("date-field") &&
-      (await builderDate.evaluate((node) => getComputedStyle(node).cursor)) === "pointer",
-    await builderDate.getAttribute("class"),
-  );
-
   check("no uncaught page errors", pageErrors.length === 0, pageErrors.slice(0, 2).join(" | "));
   await browser.close();
 

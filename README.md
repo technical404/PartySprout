@@ -265,7 +265,7 @@ applied inside `buildFilters()`, so no filter combination can bypass it.
 | Group | Routes |
 |---|---|
 | Marketing | `/`, `/about`, `/contact`, `/how-it-works`, `/privacy`, `/terms` |
-| Discovery | `/search`, `/explore`, `/category/:slug`, `/category/:slug/:location`, `/vendors/:slug`, `/request-quote`, `/party-builder`, `/compare`, `/favorites`, `/quotes` |
+| Discovery | `/search`, `/explore`, `/category/:slug`, `/category/:slug/:location`, `/vendors/:slug`, `/request-quote`, `/compare`, `/favorites`, `/quotes` |
 | SEO category pages | `/superheroes`, `/princesses`, `/magicians`, `/clowns`, `/mascots`, `/pirates`, `/holidays`, `/fairies`, `/star-wars`, `/non-mascot-characters` |
 | SEO city and intent pages | `/<category>/dallas-tx` plus intent routes such as `/magicians/dallas-tx/kids-parties`, `/princesses/dallas-tx/birthday-parties`, `/superheroes/dallas-tx/birthday-parties` |
 | Account | `/login`, `/account`, `/list-your-business`, `/admin` |
