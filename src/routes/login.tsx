@@ -4,13 +4,13 @@ import { LoginPage } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Log in or sign up — PartySprout" },
+      { title: "Log in or sign up — Hire Party Characters" },
       {
         name: "description",
         content:
           "Log in to save favourite party businesses, track quote requests, or manage a vendor listing.",
       },
-      { property: "og:title", content: "Log in — PartySprout" },
+      { property: "og:title", content: "Log in — Hire Party Characters" },
       { property: "og:description", content: "One account for parents and party businesses." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

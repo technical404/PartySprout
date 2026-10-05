@@ -4,11 +4,11 @@ import { ListBusinessPage } from "@/components/marketplace/vendor-pages";
 export const Route = createFileRoute("/list-your-business")({
   head: () => ({
     meta: [
-      { title: "List your business — PartySprout" },
+      { title: "List your business — Hire Party Characters" },
       {
         name: "description",
         content:
-          "Add your children's party business to the PartySprout directory. Free to list, reviewed by a person, and you reply to parents directly.",
+          "Add your children's party business to the Hire Party Characters directory. Free to list, reviewed by a person, and you reply to parents directly.",
       },
       { property: "og:title", content: "List your party business" },
       { property: "og:description", content: "Get found by local families planning parties." },

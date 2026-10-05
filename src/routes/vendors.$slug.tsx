@@ -5,7 +5,7 @@ import { fetchVendor, type Vendor } from "@/lib/marketplace-data";
 
 export const Route = createFileRoute("/vendors/$slug")({
   head: ({ params }) => ({
-    meta: [{ title: `${params.slug} — PartySprout` }],
+    meta: [{ title: `${params.slug} — Hire Party Characters` }],
     links: [{ rel: "canonical", href: `/vendors/${params.slug}` }],
   }),
   component: Page,

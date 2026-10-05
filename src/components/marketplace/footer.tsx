@@ -10,12 +10,18 @@ import { fetchCategories, type Category } from "@/lib/marketplace-data";
  */
 
 export function Brand({ compact = false }: { compact?: boolean }) {
-  return <Link to="/" className="group flex items-center gap-2" aria-label="PartySprout home">
+  return <Link to="/" className="group flex items-center gap-2" aria-label="Hire Party Characters home">
     {/* The gift-stack mark from logo.png. The file is a lockup whose wordmark and
         tagline are print-sized; at header height they would render ~7px tall, so
         only the mark is used and the name stays real text beside it. */}
     <img src="/logo-mark.png" alt="" width={88} height={120} className="h-9 w-auto transition-transform group-hover:-rotate-6" />
-    {!compact && <span className="font-display text-xl font-extrabold text-inherit">Party<span className="text-primary">Sprout</span></span>}
+    {/* The name is set on two lines on purpose, at every width. On one line it is
+        ~211px, which does not fit beside the nav and the CTAs between 640px and
+        1279px - there it wrapped mid-word and dragged "Party builder" onto two
+        lines as well. Stacked it is ~110px wide and fits from 390px to 1440px
+        without touching the 72px header. The trailing space keeps the accessible
+        text reading as "Hire Party Characters" rather than one fused word. */}
+    {!compact && <span className="font-display text-xl font-extrabold leading-tight text-inherit"><span className="block">Hire Party{" "}</span><span className="block text-primary">Characters</span></span>}
   </Link>;
 }
 
@@ -87,7 +93,7 @@ export function Footer() {
       </div>
 
       <div className="mx-auto mt-12 flex max-w-7xl flex-wrap items-center justify-between gap-4 border-t border-background/15 px-6 pt-6 text-xs text-background/55">
-        <span>© 2026 PartySprout</span>
+        <span>© 2026 Hire Party Characters</span>
         <span className="flex flex-wrap gap-4">
           <Link to="/terms" className={linkClass}>Terms</Link>
           <Link to="/privacy" className={linkClass}>Privacy</Link>

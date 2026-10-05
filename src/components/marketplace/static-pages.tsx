@@ -92,7 +92,7 @@ export function AboutPage() {
     <StaticPage
       kicker="About us"
       title="Built by parents who lost a weekend to party planning."
-      intro="PartySprout is a directory of children's party entertainers. We help families find, compare and contact local businesses — and we try to be honest about what we are and what we are not."
+      intro="Hire Party Characters is a directory of children's party entertainers. We help families find, compare and contact local businesses — and we try to be honest about what we are and what we are not."
     >
       <div className="grid gap-4 sm:grid-cols-3">
         {[
@@ -124,7 +124,7 @@ export function AboutPage() {
       <Heading>What we are not</Heading>
       <Prose>
         <p>
-          PartySprout is a directory, not a booking agency. We do not employ entertainers, we do not
+          Hire Party Characters is a directory, not a booking agency. We do not employ entertainers, we do not
           take payment on their behalf, and we do not handle your booking. When you hire someone,
           your agreement is directly with that business — which is also why we always link to their
           own website and phone number.
@@ -293,7 +293,7 @@ export function HowItWorksPage() {
     <StaticPage
       kicker="How it works"
       title="From search to celebration, in five steps."
-      intro="PartySprout is designed to remove the awkward part of hiring an entertainer: emailing strangers one by one and guessing what anything costs."
+      intro="Hire Party Characters is designed to remove the awkward part of hiring an entertainer: emailing strangers one by one and guessing what anything costs."
     >
       <ol className="space-y-4">
         {PARENT_STEPS.map(({ Icon, title, copy }) => (
@@ -333,7 +333,7 @@ export function HowItWorksPage() {
       <div className="space-y-4">
         {[
           {
-            q: "Is PartySprout free to use?",
+            q: "Is Hire Party Characters free to use?",
             a: "Yes. Browsing, comparing and sending quote requests costs nothing for families.",
           },
           {
@@ -384,9 +384,9 @@ export function HowItWorksPage() {
  */
 const TERMS_SECTIONS = [
   {
-    title: "1. What PartySprout is",
+    title: "1. What Hire Party Characters is",
     body: [
-      "PartySprout operates a directory of children's party entertainment businesses. We publish information about those businesses and provide tools to contact them.",
+      "Hire Party Characters operates a directory of children's party entertainment businesses. We publish information about those businesses and provide tools to contact them.",
       "We are not a party agent, booking platform or payment processor. We are not a party to any agreement you make with a business listed here, and we take no commission on it.",
     ],
   },
@@ -400,7 +400,7 @@ const TERMS_SECTIONS = [
   {
     title: "3. Your responsibilities",
     body: [
-      "You agree to use PartySprout only for lawful purposes and to provide accurate information when you submit a quote request.",
+      "You agree to use Hire Party Characters only for lawful purposes and to provide accurate information when you submit a quote request.",
       "You are responsible for making your own decision about which business to hire, and for any agreement, payment or safety arrangement you enter into with them.",
     ],
   },
@@ -421,7 +421,7 @@ const TERMS_SECTIONS = [
   {
     title: "6. Website content and intellectual property",
     body: [
-      "The PartySprout name, design and original written content belong to us. Business names, logos, photographs and website icons belong to their respective owners and are shown for identification purposes.",
+      "The Hire Party Characters name, design and original written content belong to us. Business names, logos, photographs and website icons belong to their respective owners and are shown for identification purposes.",
       "If you believe content on this site infringes your rights, contact us and we will review and remove it where appropriate.",
     ],
   },
@@ -436,7 +436,7 @@ const TERMS_SECTIONS = [
     title: "8. Changes and governing law",
     body: [
       "We may update these terms as the service changes. The date at the top of this page shows the last revision.",
-      "These terms are governed by the laws of the jurisdiction in which PartySprout operates, and this template should be adapted to the correct jurisdiction before launch.",
+      "These terms are governed by the laws of the jurisdiction in which Hire Party Characters operates, and this template should be adapted to the correct jurisdiction before launch.",
     ],
   },
 ];
@@ -494,7 +494,7 @@ const PRIVACY_SECTIONS = [
   {
     title: "8. Children's privacy",
     body: [
-      "PartySprout is intended for use by adults arranging parties. We do not knowingly collect personal information about children; information about guests should be described in general terms only, for example an age range or a headcount.",
+      "Hire Party Characters is intended for use by adults arranging parties. We do not knowingly collect personal information about children; information about guests should be described in general terms only, for example an age range or a headcount.",
     ],
   },
 ];
@@ -513,7 +513,7 @@ function LegalPage({
   return (
     <StaticPage kicker={kicker} title={title} intro={intro}>
       <p className="rounded-lg border border-rating/40 bg-rating/10 p-4 text-sm leading-7">
-        <b>Template notice.</b> This page describes how PartySprout actually behaves, but it is
+        <b>Template notice.</b> This page describes how Hire Party Characters actually behaves, but it is
         sample wording written for this project — it has not been reviewed by a lawyer. Have it
         checked and adapted to your jurisdiction before relying on it.
       </p>
@@ -573,7 +573,7 @@ export function TermsPage() {
     <LegalPage
       kicker="Terms"
       title="Terms of use"
-      intro="The ground rules for using the PartySprout directory, and what we are and are not responsible for."
+      intro="The ground rules for using the Hire Party Characters directory, and what we are and are not responsible for."
       sections={TERMS_SECTIONS}
     />
   );

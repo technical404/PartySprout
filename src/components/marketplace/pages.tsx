@@ -94,7 +94,7 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
     </div>
     <div className="mx-auto max-w-7xl px-6 py-12">
       <h2 className="font-display text-2xl font-extrabold">About {vendor.name}</h2>
-      <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-8 text-muted-foreground">{vendor.description || "Listed in the PartySprout directory."}</p>
+      <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-8 text-muted-foreground">{vendor.description || "Listed in the Hire Party Characters directory."}</p>
       <p className="mt-6 text-sm text-muted-foreground">Categories: {vendor.categories.join(", ")}</p>
       {vendor.price <= 0 && <p className="mt-4 max-w-3xl text-sm text-muted-foreground">
         This business has not published a starting price, so its card and the search filters never

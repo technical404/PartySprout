@@ -4,13 +4,13 @@ import { HowItWorksPage } from "@/components/marketplace/static-pages";
 export const Route = createFileRoute("/how-it-works")({
   head: () => ({
     meta: [
-      { title: "How it works — PartySprout" },
+      { title: "How it works — Hire Party Characters" },
       {
         name: "description",
         content:
-          "Search, compare, request one quote and book: how hiring a children's party entertainer works on PartySprout.",
+          "Search, compare, request one quote and book: how hiring a children's party entertainer works on Hire Party Characters.",
       },
-      { property: "og:title", content: "How PartySprout works" },
+      { property: "og:title", content: "How Hire Party Characters works" },
       { property: "og:description", content: "From search to celebration, in five steps." },
       { property: "og:type", content: "website" },
     ],

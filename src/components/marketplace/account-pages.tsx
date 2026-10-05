@@ -124,7 +124,7 @@ export function LoginPage() {
   return <main className="min-h-screen bg-surface pb-24">
     <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2">
       <div>
-        <p className="font-bold text-primary">Your PartySprout account</p>
+        <p className="font-bold text-primary">Your Hire Party Characters account</p>
         <h1 className="mt-2 font-display text-4xl font-extrabold sm:text-5xl">Keep every party in one place.</h1>
         <p className="mt-4 text-lg leading-8 text-muted-foreground">
           An account saves the businesses you shortlist, keeps your quote requests together and — if
@@ -635,7 +635,7 @@ export function PartyBuilderPage() {
 export function NotBuiltYet({ title, what, instead }: { title: string; what: string; instead?: ReactNode }) {
   return <main className="min-h-screen bg-surface pb-24">
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <p className="text-sm font-bold text-primary">Not part of PartySprout yet</p>
+      <p className="text-sm font-bold text-primary">Not part of Hire Party Characters yet</p>
       <h1 className="mt-2 font-display text-3xl font-extrabold">{title}</h1>
       <p className="mt-4 text-lg leading-8 text-muted-foreground">{what}</p>
       <p className="mt-4 text-sm text-muted-foreground">

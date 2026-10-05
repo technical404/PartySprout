@@ -4,7 +4,7 @@ import { ComparePage } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/compare")({
   head: () => ({
     meta: [
-      { title: "Compare Entertainers — PartySprout" },
+      { title: "Compare Entertainers — Hire Party Characters" },
       {
         name: "description",
         content:

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/category/$slug/$location")({
     const location = cityFromSlug(params.location);
     return {
       meta: [
-        { title: `${category} in ${location} — PartySprout` },
+        { title: `${category} in ${location} — Hire Party Characters` },
         {
           name: "description",
           content: `Find children's ${category} in ${location}. Compare businesses and request free quotes.`,

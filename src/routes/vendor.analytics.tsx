@@ -5,7 +5,7 @@ import { NotBuiltYet } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/vendor/analytics")({
   head: () => ({
     meta: [
-      { title: "Vendor Analytics — PartySprout" },
+      { title: "Vendor Analytics — Hire Party Characters" },
       { name: "description", content: "Profile reach and lead statistics for party businesses." },
       { property: "og:title", content: "Vendor Analytics" },
       { property: "og:type", content: "website" },
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/vendor/analytics")({
     ],
   }),
   component: () => <NotBuiltYet
-    title="Analytics is not part of PartySprout yet"
+    title="Analytics is not part of Hire Party Characters yet"
     what="Nothing here records profile views, click-throughs or conversion, so there are no honest numbers to show. Your dashboard shows the two things that are real: the review status of your listing and the quote requests it received."
     instead={<>
       <Button variant="outline" asChild><Link to="/vendor/dashboard">My business dashboard</Link></Button>

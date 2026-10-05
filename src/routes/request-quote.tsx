@@ -18,7 +18,7 @@ export const Route = createFileRoute("/request-quote")({
       .parse(s),
   head: () => ({
     meta: [
-      { title: "Request a party quote — PartySprout" },
+      { title: "Request a party quote — Hire Party Characters" },
       {
         name: "description",
         content:

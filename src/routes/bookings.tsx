@@ -5,7 +5,7 @@ import { NotBuiltYet } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/bookings")({
   head: () => ({
     meta: [
-      { title: "Party Bookings — PartySprout" },
+      { title: "Party Bookings — Hire Party Characters" },
       { name: "description", content: "Confirmed children's party entertainment bookings." },
       { property: "og:title", content: "Party Bookings" },
       { property: "og:type", content: "website" },
@@ -14,8 +14,8 @@ export const Route = createFileRoute("/bookings")({
     ],
   }),
   component: () => <NotBuiltYet
-    title="PartySprout does not take bookings"
-    what="Booking and payment happen directly between you and the business — PartySprout is a directory and a quote-request tool. Your requests and the businesses you shortlisted are real and are kept in your account."
+    title="Hire Party Characters does not take bookings"
+    what="Booking and payment happen directly between you and the business — Hire Party Characters is a directory and a quote-request tool. Your requests and the businesses you shortlisted are real and are kept in your account."
     instead={<>
       <Button variant="outline" asChild><Link to="/quotes">My quote requests</Link></Button>
       <Button variant="ghost" asChild><Link to="/favorites">Saved businesses</Link></Button>

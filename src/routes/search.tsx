@@ -43,7 +43,7 @@ export const Route = createFileRoute("/search")({
   validateSearch: parseSearch,
   head: () => ({
     meta: [
-      { title: "Find businesses — PartySprout" },
+      { title: "Find businesses — Hire Party Characters" },
       { name: "description", content: "Search children's party businesses by category and city." },
     ],
     links: [{ rel: "canonical", href: "/search" }],

@@ -4,7 +4,7 @@ import { PartyBuilderPage } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/party-builder")({
   head: () => ({
     meta: [
-      { title: "Build My Party — PartySprout" },
+      { title: "Build My Party — Hire Party Characters" },
       {
         name: "description",
         content:

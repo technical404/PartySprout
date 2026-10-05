@@ -4,11 +4,11 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-02, local dev server in a real browser (the logo mark in the header,
-  footer and favicon, see iteration 10)
-  (previous: nav and results bar — iteration 9; production host + local SQLite, quote
-  wizard event type — iteration 8; full local run: 2026-09-21, dev server on
-  `http://localhost:8080`)
+- Last run: 2026-10-05, local dev server and the live site in a real browser (the site
+  renamed to Hire Party Characters, see iteration 11)
+  (previous: the logo mark in the header, footer and favicon — iteration 10; nav and
+  results bar — iteration 9; production host + local SQLite, quote wizard event type —
+  iteration 8; full local run: 2026-09-21, dev server on `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -49,6 +49,43 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-05 — iteration 11: the site is called Hire Party Characters
+
+The name was `PartySprout`, written out in **90 places across 51 files** under `src/`.
+`src/lib/site.ts` exports a `SITE_NAME` constant, but **nothing imports it** — every page
+title, meta tag and sentence carried its own copy of the string, which is why the rename
+could not be a one-line change. All 90 now read **Hire Party Characters**: page titles,
+meta/OG/Twitter tags, the `author` tag, the footer copyright, on-page copy (about, terms,
+privacy, how it works), the `aria-label` on the home link, and the placeholder support
+address, now `hello@hirepartycharacters.example`.
+
+The header could not hold the longer name on one line. At 20px it is about **211px**
+wide, and the row also carries the nav and the CTAs, so between **640px and 1279px** the
+name wrapped mid-title and dragged "Party builder" onto two lines with it. Rather than
+shrink the type to something ~13px or hide the name on small laptops, the brand is now an
+explicit **two-line lockup** — "Hire Party" over "Characters" — about 110px wide, which
+fits from 390px to 1440px with the 72px header and the nav/CTA decisions from iteration 9
+untouched. The second line keeps the brand purple, so the two-tone wordmark survives.
+"Characters" is a block span rather than a natural wrap, so the break is deliberate
+instead of depending on how much room the row happens to have.
+
+```
+node scripts/tmp-name-check.mjs https://hirepartycharacters.com   ->  23/23   (live)
+```
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| No `sprout` / `partysprout` / `partyspark` / `party spark` token left under `src/` | 0 |
+| The header reads "Hire Party Characters", stacked, with the accent on the last line | PASS |
+| The header is still 72px and the brand measures 144×50 at every width | PASS |
+| No page, header or row overflow at 390 / 640 / 768 / 1024 / 1280 / 1440px | PASS |
+| Titles carry the new name on /, /search, /explore, /about and /terms | PASS |
+| Footer reads "© 2026 Hire Party Characters"; no old name anywhere in it | PASS |
+| On-page copy and the support address are renamed; no old name on /about or /contact | PASS |
+| The logo mark still loads (88×120); no uncaught page errors | PASS |
+| Live: the same checks against `hirepartycharacters.com` | 23/23 |
 
 ### 2026-10-02 — iteration 10: the header wears the real logo
 

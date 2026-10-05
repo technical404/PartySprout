@@ -4,10 +4,10 @@ import { VendorDashboardPage } from "@/components/marketplace/vendor-pages";
 export const Route = createFileRoute("/vendor/dashboard")({
   head: () => ({
     meta: [
-      { title: "Vendor Dashboard — PartySprout" },
+      { title: "Vendor Dashboard — Hire Party Characters" },
       {
         name: "description",
-        content: "Manage your PartySprout listing, track its review status and read incoming quote requests.",
+        content: "Manage your Hire Party Characters listing, track its review status and read incoming quote requests.",
       },
       { property: "og:title", content: "Vendor Dashboard" },
       { property: "og:description", content: "Grow your children's party business." },

@@ -4,7 +4,7 @@ import { SavedPage } from "@/components/marketplace/account-pages";
 export const Route = createFileRoute("/favorites")({
   head: () => ({
     meta: [
-      { title: "Saved Entertainers — PartySprout" },
+      { title: "Saved Entertainers — Hire Party Characters" },
       { name: "description", content: "The children's party businesses you shortlisted, kept in one list." },
       { property: "og:title", content: "Saved Entertainers" },
       { property: "og:description", content: "Your shortlisted party businesses in one place." },
