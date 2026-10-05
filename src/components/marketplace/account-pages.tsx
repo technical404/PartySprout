@@ -14,6 +14,7 @@ import {
 import { useSaved } from "@/lib/saved";
 import { useSession } from "@/lib/session";
 import { SUPPORT_EMAIL } from "@/lib/site";
+import { normalisePhone, phoneError, sanitisePhoneInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------------- */
@@ -45,6 +46,18 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
     setBusy(true);
     setError(null);
     setFields({});
+
+    // Signing up carries the same optional phone as the quote wizard, so the
+    // same rule answers here instead of leaving the server to explain it.
+    if (mode === "signup") {
+      const problem = phoneError(phone);
+      if (problem) {
+        setFields({ phone: problem });
+        setError("Please fix the highlighted fields.");
+        setBusy(false);
+        return;
+      }
+    }
 
     const result = mode === "login"
       ? await login(email, password)
@@ -94,7 +107,8 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
       {mode === "signup" && <>
         <label className="grid gap-2 text-sm font-semibold">
           Phone (optional)
-          <Input value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+1 555 010 2030" />
+          <Input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} autoComplete="tel" placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} />
+          {fields["phone"] && <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>}
         </label>
         <fieldset className="grid gap-2">
           <legend className="text-sm font-semibold">I am signing up to…</legend>
@@ -217,9 +231,16 @@ export function AccountPage() {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    setStatus("saving");
     setMessage(null);
-    const result = await updateProfile({ name, phone });
+
+    const problem = phoneError(phone);
+    if (problem) {
+      setMessage(problem);
+      return;
+    }
+
+    setStatus("saving");
+    const result = await updateProfile({ name, phone: normalisePhone(phone) });
     if (!result.ok) {
       setMessage(result.message);
       setStatus("idle");
@@ -267,7 +288,7 @@ export function AccountPage() {
               </label>
               <label className="grid gap-2 text-sm font-semibold">
                 Phone (optional)
-                <Input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" />
+                <Input type="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} inputMode="tel" />
               </label>
               <label className="grid gap-2 text-sm font-semibold">
                 Email

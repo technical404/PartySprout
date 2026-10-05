@@ -43,6 +43,7 @@ import {
   type Vendor,
 } from "@/lib/marketplace-data";
 import { SUPPORT_EMAIL } from "@/lib/site";
+import { PHONE_ERROR, countError, isValidPhone, normalisePhone, sanitisePhoneInput } from "@/lib/validation";
 
 const BUDGETS = [
   "Under $200",
@@ -112,10 +113,12 @@ const ALL_EVENT_TYPES = [
 const quoteSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name."),
   email: z.string().trim().min(1, "Please enter your email.").email("Enter a valid email address."),
-  phone: z.string().trim(),
+  // Optional, but it has to look like a phone number: type="tel" only hints to
+  // the mobile keyboard and never rejected a letter.
+  phone: z.string().trim().refine(isValidPhone, { message: PHONE_ERROR }),
   eventDate: z.string(),
   city: z.string().trim().min(2, "Which city is the party in?"),
-  guestCount: z.string().trim(),
+  guestCount: z.string().trim().refine((value) => countError(value) === null, { message: "Use a whole number of children." }),
   childAge: z.string().trim(),
   eventType: z.string().min(1, "Pick the type of event you are planning."),
   category: z.string().min(1, "Pick the entertainment you are after."),
@@ -337,7 +340,7 @@ export function RequestQuoteForm({
     const result = await submitQuoteRequest({
       name: values.name,
       email: values.email,
-      phone: values.phone,
+      phone: normalisePhone(values.phone),
       city: values.city,
       eventDate: values.eventDate,
       guestCount: values.guestCount,
@@ -650,7 +653,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="phone"
               render={({ field }) => question(current.hint, (
-                <Input type="tel" autoComplete="tel" placeholder="+1 555 010 2030" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="+1 555 010 2030" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} onChange={(event) => field.onChange(sanitisePhoneInput(event.target.value))} />
               ))}
             />
           )}

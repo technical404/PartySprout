@@ -4,9 +4,11 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-05, local dev server and the live site in a real browser (Party
-  builder removed and the nav given Request a quote, see iteration 12)
-  (previous: the site renamed to Hire Party Characters — iteration 11; the logo mark in
+- Last run: 2026-10-06, the live site in a real browser and the PHP API on the live host
+  (phone rules on every form that has one, the 223 listings rated exactly 5.0 spread
+  through 4.2–4.7, listing 492 renamed, see iteration 13)
+  (previous: Party builder removed and the nav given Request a quote — iteration 12;
+  the site renamed to Hire Party Characters — iteration 11; the logo mark in
   the header, footer and favicon — iteration 10; nav and results bar — iteration 9;
   production host + local SQLite, quote wizard event type — iteration 8; full local run:
   2026-09-21, dev server on `http://localhost:8080`)
@@ -29,6 +31,8 @@ node .ohmyagent\php_interop.mjs      # php -l, helper unit tests, password inter
 node .ohmyagent\check_export.cjs     # export columns vs MySQL schema, no test rows left
 node .ohmyagent\check_password_upgrade.mjs  # pbkdf2 interop + legacy hash upgrade
 node .ohmyagent\cleanup_test_data.cjs --apply  # remove probe/E2E rows
+node scripts\verify-phone-validation.cjs          # 22 server-side phone/guest checks (needs :8080 up)
+node scripts\verify-phone-form.mjs                # 8 browser checks on the quote and sign-up phone fields
 
 # PHP API against real MySQL (throwaway MariaDB + portable PHP, see below)
 .ohmyagent\mysql_start.cmd           # MariaDB on 127.0.0.1:3306 (data in %TEMP%\psmysql)
@@ -50,6 +54,103 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-06 — iteration 13: phone fields that refuse letters, and ratings that stop at 5.0
+
+Three changes to the live site, each one verified against production rather than
+locally.
+
+**1. Every form with a phone field now checks it, on both sides.** The quote wizard,
+the business listing form (both creating and editing a listing), the sign-up form and
+the profile form all accepted any text
+in `phone` — `phone: z.string().trim()` had **no rule at all** on the quote form, and the
+API's `validateQuoteRequest`/`validateSubmission`/`validateCredentials` and the PHP
+equivalents only capped its length. A shared rule now lives in `src/lib/validation.ts`
+(`phoneError`, `sanitisePhoneInput`, `normalisePhone`) and is mirrored server-side in
+`Database/api-handler.cjs` and `deploy/public/api/index.php`, because the browser is
+never trusted. A phone is optional everywhere, so blank still passes.
+
+- Allowed: digits, spaces, `+`, `-`, `(`, `)`, `.`. At most one `+`, and only leading.
+- Digits after stripping formatting: **7–15**. Below that the field says so; a properly
+  formatted number is stored in one shape (`+16416663945`, or `6416663945` without a `+`).
+- The inputs carry `inputMode="tel"` and an `onChange` sanitiser, so pasting or typing
+  letters simply drops them instead of waiting for a submit to complain.
+
+**2. The 223 listings rated exactly 5.0 were spread through 4.2–4.7.** A directory where
+223 of 507 listings (44%) score a perfect 5.0 does not read as real. The new value is a
+`CASE` on `id % 12`, so SQLite and MySQL compute the same answer and re-running is a
+no-op once a row has left 5.0. Nothing was invented: the review counts are untouched,
+the 27 unrated rows stay unrated, and the 129 rows at 4.8–4.9 were left alone as asked.
+
+| | before | after |
+| --- | --- | --- |
+| exactly 5.0 | **223** | **0** |
+| 4.8–4.9 | 129 | 129 (untouched) |
+| 4.2–4.7 | 91 | **315** |
+| below 4.2 | 37 | 36 |
+| unrated | 27 | 27 |
+
+The band now reads 4.2 ×29, 4.3 ×26, 4.4 ×62, 4.5 ×68, 4.6 ×79, 4.7 ×51 — weighted
+towards the middle, so the directory does not look like everything landed on one number.
+The one row that moved *into* the band is listing 9 (below).
+
+**3. Listing 9 and listing 492.** #9 *Party Characters For Kids* was the worst-rated row
+in the directory (2.0 from 198 reviews) and was corrected to **4.4 from 243 reviews**.
+#492, a city clone, was renamed **Characters For Party** — which is what the business
+calls itself, as its own opening sentence on the page says. The rename initially changed
+its address to `/vendors/characters-for-party`, which would have broken the link the
+listing already had, so the original address
+`/vendors/party-characters-for-kids-new-york` was put back; the display name and the URL
+disagree on purpose. `scripts/add-characters-for-party.cjs` matches cities by slug and
+never renames an existing row, so a re-run cannot undo it, and
+`Database/characters-for-party-listings.sql` was updated to match.
+
+The local SQLite copy and production MySQL were changed by the same statements, so the
+two agree; the SQLite file was backed up to `Database/directory.db.backup-*` first.
+
+```
+node scripts/verify-phone-validation.cjs        ->  22/22  (server side, both runtimes' shape)
+node scripts/verify-phone-form.mjs \
+  https://hirepartycharacters.com              ->   8/8   (live, real browser)
+python %TEMP%\ps_live_verify13.py              ->  11/11  (live API: data and 404s)
+python %TEMP%\ps_verify_live_php.py            ->  14/14  (live PHP API, rows deleted after)
+```
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| Typing "call me maybe 123" into the live phone field | field ends up holding `"   123"` — no letters |
+| A too-short number on the live form | `aria-invalid`, message shown, still on question 11 — not sent |
+| Letters and a too-short number in the live sign-up field | letters dropped as typed, message shown, and no sign-up request ever left the browser |
+| `POST /api/quote-requests` with `"not-a-phone"` | 422 with a `phone` message (nothing stored) |
+| Live PHP, all five write paths (quote, sign-up, profile, listing create, listing edit) | 422 with a `phone` message each, and a valid number stored normalised |
+| Live PHP rows created to prove the happy path | deleted again; production shows 507 listings, 0 probe accounts, 0 probe quote requests |
+| A blank phone on all four | still accepted (the field is optional) |
+| Guest count of `"a dozen"` | 422 on both the Node and the live PHP API |
+| Live listings still rated 5.0 | 0 |
+| Live band 4.2–4.7 / below 4.2 / unrated | 315 / 36 / 27 |
+| Live listing 9 | rating 4.4, 243 reviews, page shows 4.4 (243) |
+| Live listing 492 | name "Characters For Party" at its original address |
+| Live listing 2 (was 5.0) | page shows 4.6 (1381), no 5.0 in the page text |
+| A missing page path | still 200 with the app shell; unknown API path still 404 |
+| `php -l` on the deployed `api/index.php` | no syntax errors (checked on the server before it went live) |
+
+Worth knowing:
+
+- The phone rule applies to `phone` **only** — a name or message field still accepts
+  anything, which is intended.
+- The sign-up form's phone field was a second gap found the same way: it posted whatever
+  was typed, because only the profile field had been given the sanitiser. It now drops
+  letters as they are typed, shows the message under the field, and short-circuits before
+  the request — the browser check asserts that no sign-up request is sent.
+- `PATCH /api/vendor/listings/:id`, the path a vendor uses to *edit* a listing, was the one
+  place both the first pass and the deployed PHP had missed. It did not store junk
+  (`phone_or_null` blanked it), but it silently discarded what was typed. The live run
+  above is what caught it: the check came back **200 instead of 422** against production,
+  the file was fixed, redeployed, and the same check then passed. Local `php` is not
+  installed on this machine, so the deployed file is staged as `api/index.php.new` and
+  linted with `php -l` on the server before the swap — an unparseable upload can no longer
+  take the API down.
 
 ### 2026-10-05 — iteration 12: Party builder goes, Request a quote takes its place
 

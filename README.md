@@ -237,8 +237,16 @@ applied inside `buildFilters()`, so no filter combination can bypass it.
   `SameSite=Lax`, `Max-Age` 30 days, plus `Secure` whenever the request arrived over
   TLS. Every request re-reads the session row, so logout really revokes it.
 - **Server-side validation** runs again on every write: name, email format, password
-  length (8–200), price range, field-length cap, and `safeUrl()` rejects anything that is
-  not `http(s)` — a `javascript:` website comes back as a field error.
+  length (8–200), price range, guest count, field-length cap, and `safeUrl()` rejects
+  anything that is not `http(s)` — a `javascript:` website comes back as a field error.
+  A phone number (an optional field on the quote, sign-up, profile and business forms)
+  accepts digits, spaces, `+`, `-`, `(`, `)`, `.` with at most one leading `+` and 7–15
+  digits; anything else, letters included, is a field error in both runtimes, and the
+  browser drops what a phone number cannot contain as it is typed rather than waiting
+  for the submit. The rule is
+  defined once in `src/lib/validation.ts` for the browser and mirrored in
+  `Database/api-handler.cjs` and `deploy/public/api/index.php`, so the two backends
+  answer with the same message.
 - **Rate limiting:** signup and login allow 10 attempts per 15 minutes per IP, quote
   requests 30 per 15 minutes, in both runtimes, with the same 429 body. Node keeps the
   counters in memory; PHP keeps one small file per bucket under

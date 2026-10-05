@@ -116,6 +116,33 @@ function throttle(req, name, max, windowMs) {
 /* Validation                                                                 */
 /* ------------------------------------------------------------------------- */
 
+/**
+ * The same phone rule the client uses (src/lib/validation.ts). It was missing
+ * here, so a POST could store "hello" as a phone number whatever the UI did.
+ * Empty stays valid: every phone field in this app is optional.
+ */
+const PHONE_ALLOWED = /^[0-9+()\-.\s]+$/;
+const PHONE_MESSAGE = 'Enter a valid phone number — digits, spaces and + - ( ) only.';
+
+function phoneError(value) {
+  const trimmed = text(value);
+  if (!trimmed) return null;
+  if (!PHONE_ALLOWED.test(trimmed)) return PHONE_MESSAGE;
+  const plus = (trimmed.match(/\+/g) || []).length;
+  if (plus > 1 || (plus === 1 && !trimmed.startsWith('+'))) return PHONE_MESSAGE;
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return 'That does not look like a phone number — check the digits.';
+  return null;
+}
+
+/** Keeps a leading "+" and the digits, so the same number stores one way. */
+function normalisePhone(value) {
+  const trimmed = text(value);
+  if (!trimmed) return '';
+  const digits = trimmed.replace(/\D/g, '');
+  return trimmed.startsWith('+') ? '+' + digits : digits;
+}
+
 function validateCredentials(body, { requirePassword = true } = {}) {
   const errors = {};
   const email = auth.normalizeEmail(body.email);
@@ -131,7 +158,10 @@ function validateCredentials(body, { requirePassword = true } = {}) {
     else if (password.length > 200) errors.password = 'Password is too long.';
   }
 
-  return { errors, value: { email, name, password, phone: text(body.phone) } };
+  const phoneProblem = phoneError(body.phone);
+  if (phoneProblem) errors.phone = phoneProblem;
+
+  return { errors, value: { email, name, password, phone: normalisePhone(body.phone) } };
 }
 
 /** Never trust the client: the same rules are re-checked here. */
@@ -147,15 +177,20 @@ function validateQuoteRequest(body) {
   else if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
   else if (email.length > MAX_FIELD) errors.email = 'Email is too long.';
 
-  for (const field of ['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget']) {
+  for (const field of ['city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget']) {
     if (text(body[field]).length > MAX_FIELD) errors[field] = 'Value is too long.';
   }
+  const phoneProblem = phoneError(body.phone);
+  if (phoneProblem) errors.phone = phoneProblem;
+  // A children count is free text, but a number is the only useful answer here.
+  const guests = text(body.guestCount);
+  if (guests && !/^\d{1,4}$/.test(guests)) errors.guestCount = 'Use a whole number of children.';
   // event_type is narrower than the other free-text fields, so it gets its own
   // column's limit: SQLite would happily store what MySQL has to refuse.
   if (text(body.eventType).length > EVENT_TYPE_MAX) errors.eventType = 'Value is too long.';
   if (text(body.details).length > 10000) errors.details = 'Message is too long.';
 
-  return { errors, value: { ...body, name, email } };
+  return { errors, value: { ...body, name, email, phone: normalisePhone(body.phone) } };
 }
 
 /** A business submission: name, category and a resolvable city are the minimum. */
@@ -182,6 +217,9 @@ function validateSubmission(body) {
   const priceFrom = toPrice(body.priceFrom);
   if (priceFrom === undefined) errors.priceFrom = 'Enter a price in dollars, or leave it blank.';
 
+  const phoneProblem = phoneError(body.phone);
+  if (phoneProblem) errors.phone = phoneProblem;
+
   const description = text(body.description);
   if (description.length > 5000) errors.description = 'Description is too long. Try a shorter summary.';
 
@@ -196,7 +234,7 @@ function validateSubmission(body) {
       countryId: city?.country_id ?? queries.getCountryByCode('US')?.id,
       website,
       email: email || null,
-      phone: text(body.phone),
+      phone: normalisePhone(body.phone),
       priceFrom: priceFrom ?? null,
       description,
     },
@@ -321,10 +359,11 @@ async function handleAuth(req, res, pathname, url) {
     const name = text(body.name);
     if (name.length < 2) errors.name = 'Please enter your name.';
     if (name.length > MAX_FIELD) errors.name = 'Name is too long.';
-    if (text(body.phone).length > MAX_FIELD) errors.phone = 'Phone number is too long.';
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
     if (Object.keys(errors).length > 0) return send(res, 422, { error: 'Validation failed', fields: errors });
 
-    const updated = queries.updateUserProfile(user.id, { name, phone: body.phone });
+    const updated = queries.updateUserProfile(user.id, { name, phone: normalisePhone(body.phone) });
     return send(res, 200, { user: publicUser(updated) });
   }
 
@@ -438,6 +477,8 @@ async function handleVendor(req, res, pathname) {
     if (email && !EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
     const priceFrom = toPrice(body.priceFrom);
     if (priceFrom === undefined) errors.priceFrom = 'Enter a price in dollars, or leave it blank.';
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
     if (Object.keys(errors).length > 0) return send(res, 422, { error: 'Validation failed', fields: errors });
 
     // A new city is only applied when one was actually sent; otherwise the
@@ -449,7 +490,7 @@ async function handleVendor(req, res, pathname) {
       name,
       description: text(body.description),
       website,
-      phone: text(body.phone),
+      phone: normalisePhone(body.phone),
       email: email || null,
       priceFrom: priceFrom ?? null,
       cityId: city ? city.id : listing.city_id,

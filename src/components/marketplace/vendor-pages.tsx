@@ -15,6 +15,7 @@ import {
 } from "@/lib/marketplace-data";
 import { useSession } from "@/lib/session";
 import { SUPPORT_EMAIL } from "@/lib/site";
+import { amountError, normalisePhone, phoneError, sanitisePhoneInput } from "@/lib/validation";
 
 const STATUS_COPY: Record<string, { label: string; className: string; blurb: string }> = {
   active: {
@@ -96,16 +97,31 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    setStatus("saving");
     setError(null);
     setFields({});
+
+    // Answer what these rules cover straight away, so a letter in the phone
+    // field or a currency symbol in the price is not a round trip. The server
+    // re-checks all of it.
+    const local: Record<string, string> = {};
+    const phoneProblem = phoneError(values.phone);
+    if (phoneProblem) local["phone"] = phoneProblem;
+    const priceProblem = amountError(values.priceFrom);
+    if (priceProblem) local["priceFrom"] = priceProblem;
+    if (Object.keys(local).length > 0) {
+      setFields(local);
+      setError("Please fix the highlighted fields.");
+      return;
+    }
+
+    setStatus("saving");
 
     const payload: BusinessSubmission = {
       name: values.name,
       categorySlug: values.categorySlug,
       cityText: values.city,
       website: values.website,
-      phone: values.phone,
+      phone: normalisePhone(values.phone),
       email: values.email,
       priceFrom: values.priceFrom,
       description: values.description,
@@ -188,7 +204,8 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
       <label className="grid gap-2 text-sm font-semibold">
         Phone (optional)
-        <Input value={values.phone} onChange={set("phone")} placeholder="+1 555 010 2030" />
+        <Input type="tel" inputMode="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: sanitisePhoneInput(event.target.value) }))} placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} />
+        {fields["phone"] && <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">

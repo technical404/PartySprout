@@ -168,6 +168,48 @@ function nullable_text($value): ?string
     return $clean === '' ? null : $clean;
 }
 
+/**
+ * The same phone rule the client uses (src/lib/validation.ts) and the Node API
+ * mirrors in api-handler.cjs. Empty stays valid - every phone field is optional.
+ */
+function phone_error($value): ?string
+{
+    $trimmed = text($value);
+    if ($trimmed === '') {
+        return null;
+    }
+    if (!preg_match('/^[0-9+()\-.\s]+$/', $trimmed)) {
+        return 'Enter a valid phone number — digits, spaces and + - ( ) only.';
+    }
+    $plus = substr_count($trimmed, '+');
+    if ($plus > 1 || ($plus === 1 && $trimmed[0] !== '+')) {
+        return 'Enter a valid phone number — digits, spaces and + - ( ) only.';
+    }
+    $digits = preg_replace('/\D/', '', $trimmed);
+    if (strlen($digits) < 7 || strlen($digits) > 15) {
+        return 'That does not look like a phone number — check the digits.';
+    }
+    return null;
+}
+
+/** Keeps the leading "+" and the digits, so the same number stores one way. */
+function normalize_phone($value): string
+{
+    $trimmed = text($value);
+    if ($trimmed === '') {
+        return '';
+    }
+    $digits = preg_replace('/\D/', '', $trimmed);
+    return $trimmed[0] === '+' ? '+' . $digits : $digits;
+}
+
+/** Normalised phone, or null when it was left blank. */
+function phone_or_null($value): ?string
+{
+    $normalized = normalize_phone($value);
+    return $normalized === '' ? null : $normalized;
+}
+
 function normalize_email($email): string
 {
     return strtolower(text($email));
@@ -621,6 +663,10 @@ function handle_auth(mysqli $db, string $method, string $path): bool
         } elseif (strlen($password) > 200) {
             $errors['password'] = 'Password is too long.';
         }
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
         // Admins are promoted deliberately (Database/create-admin.cjs), never here.
         $role = text($body['role'] ?? '') === 'vendor' ? 'vendor' : 'parent';
 
@@ -634,7 +680,7 @@ function handle_auth(mysqli $db, string $method, string $path): bool
         run_write(
             $db,
             'INSERT INTO users (email, name, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-            [$email, $name, nullable_text($body['phone'] ?? ''), hash_password($password), $role]
+            [$email, $name, phone_or_null($body['phone'] ?? ''), hash_password($password), $role]
         );
         $userId = (int) $db->insert_id;
         $token = create_session($db, $userId);
@@ -698,12 +744,17 @@ function handle_auth(mysqli $db, string $method, string $path): bool
         }
         if (strlen(text($body['phone'] ?? '')) > MAX_FIELD) {
             $errors['phone'] = 'Phone number is too long.';
+        } else {
+            $phoneProblem = phone_error($body['phone'] ?? '');
+            if ($phoneProblem !== null) {
+                $errors['phone'] = $phoneProblem;
+            }
         }
         if ($errors !== []) {
             send(422, ['error' => 'Validation failed', 'fields' => $errors]);
         }
 
-        run_write($db, 'UPDATE users SET name = ?, phone = ? WHERE id = ?', [$name, nullable_text($body['phone'] ?? ''), (int) $user['id']]);
+        run_write($db, 'UPDATE users SET name = ?, phone = ? WHERE id = ?', [$name, phone_or_null($body['phone'] ?? ''), (int) $user['id']]);
         $updated = fetch_one($db, 'SELECT id, email, name, phone, role, listing_id, status FROM users WHERE id = ?', [(int) $user['id']]);
         send(200, ['user' => public_user($updated)]);
     }
@@ -801,6 +852,11 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
             $errors['priceFrom'] = 'Enter a price in dollars, or leave it blank.';
         }
 
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
+
         $description = text($body['description'] ?? '');
         if (strlen($description) > 5000) {
             $errors['description'] = 'Description is too long. Try a shorter summary.';
@@ -844,7 +900,7 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
                 $city === null ? nullable_text($cityText) : null,
                 nullable_text($description),
                 nullable_text($website),
-                nullable_text($body['phone'] ?? ''),
+                phone_or_null($body['phone'] ?? ''),
                 nullable_text($email),
                 $priceFrom === null ? null : $priceFrom,
                 $userId,
@@ -898,6 +954,10 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
         if ($priceFrom === false) {
             $errors['priceFrom'] = 'Enter a price in dollars, or leave it blank.';
         }
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
         if ($errors !== []) {
             send(422, ['error' => 'Validation failed', 'fields' => $errors]);
         }
@@ -917,7 +977,7 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
                 $name,
                 nullable_text($body['description'] ?? ''),
                 nullable_text($website),
-                nullable_text($body['phone'] ?? ''),
+                phone_or_null($body['phone'] ?? ''),
                 nullable_text($email),
                 $priceFrom === null ? null : $priceFrom,
                 $newCityId > 0 ? $newCityId : null,
@@ -1062,10 +1122,19 @@ try {
         } elseif (strlen($email) > MAX_FIELD) {
             $errors['email'] = 'Email is too long.';
         }
-        foreach (['phone', 'city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget'] as $field) {
+        foreach (['city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget'] as $field) {
             if (strlen(text($body[$field] ?? '')) > MAX_FIELD) {
                 $errors[$field] = 'Value is too long.';
             }
+        }
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
+        // A children count is free text, but a number is the only useful answer.
+        $guests = text($body['guestCount'] ?? '');
+        if ($guests !== '' && !preg_match('/^\d{1,4}$/', $guests)) {
+            $errors['guestCount'] = 'Use a whole number of children.';
         }
         // event_type is narrower than the other free-text fields, so it gets its
         // own column's limit: MySQL has to refuse what SQLite would accept.
@@ -1094,7 +1163,7 @@ try {
             [
                 $name,
                 $email,
-                nullable_text($body['phone'] ?? ''),
+                phone_or_null($body['phone'] ?? ''),
                 nullable_text($body['city'] ?? ''),
                 nullable_text($body['eventDate'] ?? ''),
                 nullable_text($body['guestCount'] ?? ''),
