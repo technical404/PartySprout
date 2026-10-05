@@ -4,10 +4,11 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-02, local dev server in a real browser (nav and results bar, see
-  iteration 9)
-  (previous: 2026-10-01, production host + local SQLite, quote wizard event type —
-  iteration 8; full local run: 2026-09-21, dev server on `http://localhost:8080`)
+- Last run: 2026-10-02, local dev server in a real browser (the logo mark in the header,
+  footer and favicon, see iteration 10)
+  (previous: nav and results bar — iteration 9; production host + local SQLite, quote
+  wizard event type — iteration 8; full local run: 2026-09-21, dev server on
+  `http://localhost:8080`)
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -48,6 +49,50 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-02 — iteration 10: the header wears the real logo
+
+The brand was a purple rounded square holding a lucide `Sparkles` beside the words
+"Party**Sprout**". `logo.png` is not a mark: it is a lockup — the gift-stack
+illustration (375×529 at x 25..399 of 980×550) with "PartySprout" set beside it and a
+tagline under that. Put the whole file in the header and its printed wording lands at
+about **7px tall**, which is a smudge rather than text; setting it large enough to read
+would push the header to ~96px and drag the search bar and journey cards again. So the
+header uses **the mark only**, and the name stays real text — navy with the last four
+letters in the brand purple, echoing the logo's own two-tone wordmark.
+
+The file is opaque RGB on a *papered* white ground (253,253,253 rather than 255), so a
+plain white→transparent key left a **1% veil across the whole bounding box**: invisible
+over the near-white header, but a visible rectangle over any darker ground. Alpha is
+derived from luminance with that paper floored out, which leaves the corners at alpha 0,
+**no** opaque and **no** semi-transparent near-white pixel anywhere, and the artwork's
+soft drop shadow intact. The result is `public/logo-mark.png`, 88×120 — stored near 3×
+the 36px it is drawn at, so the browser downsamples rather than the file shipping an
+upscaled alpha ramp that barely compresses — and the 72px header is untouched.
+
+The footer's panel is near-black while the mark is dark navy, so the footer's brand sits
+on a light pill that also re-sets the wordmark to its dark colour; the footer's own body
+text is light and would otherwise be inherited.
+
+The favicon was rebuilt from the same mark, embedded base64 in `public/favicon.svg` so it
+stays a single self-contained file, and it keeps the `/favicon.svg` path so `__root.tsx`
+needed no change.
+
+```
+node scripts/tmp-logo-check.mjs   ->  19/19   (temporary driver, deleted after the run)
+```
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| Header shows `/logo-mark.png` at its real 88×120, drawn 26×36 | PASS |
+| Header still 72px; no page or header overflow at 390 / 640 / 768 / 1024 / 1280px | PASS |
+| The mark is decorative (`alt=""`); the link is named "PartySprout home" | PASS |
+| "PartySprout" is still real text at 20px, not baked into the image | PASS |
+| The mark's corners are alpha 0, with no opaque or semi-transparent near-white pixel | PASS |
+| Favicon serves 200 from `/favicon.svg` and carries the mark as a base64 PNG | PASS |
+| Footer brand sits on a light pill and the wordmark re-sets its own dark colour | PASS |
+| No uncaught page errors | PASS |
 
 ### 2026-10-02 — iteration 9: the nav calls you, and the results bar sits under the header
 
