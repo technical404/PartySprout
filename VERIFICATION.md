@@ -78,8 +78,20 @@ The favicon was rebuilt from the same mark, embedded base64 in `public/favicon.s
 stays a single self-contained file, and it keeps the `/favicon.svg` path so `__root.tsx`
 needed no change.
 
+Going live needed two things the code alone did not cover. The staging domain
+`anuranjanv14.sg-host.com` had been **renamed** to `hirepartycharacters.com`: its DNS was
+gone (NXDOMAIN from Google, Cloudflare and Quad9 while `sg-host.com` itself still
+resolved) and its docroot no longer existed, while the new docroot held the same bytes —
+the same account on the same server, so only the deploy target moved. And `logo-mark.png`
+lives at the site root rather than under `/assets/`, which is all the deploy script had
+been uploading, so the mark never shipped: `/logo-mark.png` answered **200 with the HTML
+shell**, because the SPA rewrite catches unknown paths, and the browser reported an image
+it could not decode (`naturalWidth` 0) instead of a 404. The deploy now uploads the
+build's root static files and md5-checks each against the build, because a silent 200
+hides that failure completely.
+
 ```
-node scripts/tmp-logo-check.mjs   ->  19/19   (temporary driver, deleted after the run)
+node scripts/tmp-logo-check.mjs https://hirepartycharacters.com   ->  20/20   (live)
 ```
 
 | Check | Result |
@@ -93,6 +105,9 @@ node scripts/tmp-logo-check.mjs   ->  19/19   (temporary driver, deleted after t
 | Favicon serves 200 from `/favicon.svg` and carries the mark as a base64 PNG | PASS |
 | Footer brand sits on a light pill and the wordmark re-sets its own dark colour | PASS |
 | No uncaught page errors | PASS |
+| Live: `/logo-mark.png` is 16,611 bytes and md5-matches the build, not the HTML shell | PASS |
+| Live: `/favicon.svg` is 6,680 bytes and carries the mark; `/robots.txt` unchanged | PASS |
+| Live: the same checks against `hirepartycharacters.com` | 20/20 |
 
 ### 2026-10-02 — iteration 9: the nav calls you, and the results bar sits under the header
 
