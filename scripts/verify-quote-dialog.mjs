@@ -54,6 +54,17 @@ for (let step = 0; step < 12; step++) {
     }
   }
 
+  // Answer a native <select>, which is what the event-type question uses.
+  const select = dialog.locator("select");
+  if (await select.count()) {
+    const s = select.first();
+    if ((await s.isVisible().catch(() => false)) && !(await s.inputValue().catch(() => ""))) {
+      const value = await s.locator('option:not([disabled])').first().getAttribute("value");
+      if (value) await s.selectOption(value).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
+
   // Advance: prefer an explicit next/continue/submit control. "Done" is
   // deliberately excluded — it is the success screen's dismiss button, and
   // matching it would close the dialog before we can assert on the outcome.

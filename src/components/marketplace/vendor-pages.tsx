@@ -5,11 +5,13 @@ import {
   Plus, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CONTROL_AREA_CLASS, CONTROL_CLASS } from "@/components/ui/control";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Footer } from "./footer";
 import { LoginPanel } from "./account-pages";
 import { api, type BusinessSubmission, type OwnedListing } from "@/lib/api";
+import { formatDate } from "@/lib/dates";
 import {
   fetchCategories, fetchCitySuggestions, mapVendor, type Category, type City, type QuoteRequestRow,
 } from "@/lib/marketplace-data";
@@ -169,7 +171,7 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
     <div className="grid gap-5 sm:grid-cols-2">
       <label className="grid gap-2 text-sm font-semibold sm:col-span-2">
         Business name
-        <Input value={values.name} onChange={set("name")} placeholder="Dallas Superhero Parties" required />
+        <Input value={values.name} onChange={set("name")} placeholder="Dallas Superhero Parties" required className={CONTROL_CLASS} />
         {fieldError("name") && <span className="text-xs font-medium text-destructive">{fieldError("name")}</span>}
       </label>
 
@@ -189,7 +191,7 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
       <label className="grid gap-2 text-sm font-semibold">
         City you serve
-        <Input value={values.city} onChange={set("city")} list="business-city-options" placeholder="Dallas" autoComplete="off" required />
+        <Input value={values.city} onChange={set("city")} list="business-city-options" placeholder="Dallas" autoComplete="off" required className={CONTROL_CLASS} />
         <datalist id="business-city-options">
           {cities.map((city) => <option key={`${city.name}-${city.stateCode}`} value={city.name}>{city.label}</option>)}
         </datalist>
@@ -198,25 +200,25 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
       <label className="grid gap-2 text-sm font-semibold">
         Website (optional)
-        <Input value={values.website} onChange={set("website")} placeholder="https://example.com" />
+        <Input value={values.website} onChange={set("website")} placeholder="https://example.com" className={CONTROL_CLASS} />
         {fields["website"] && <span className="text-xs font-medium text-destructive">{fields["website"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
         Phone (optional)
-        <Input type="tel" inputMode="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: sanitisePhoneInput(event.target.value) }))} placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} />
+        <Input type="tel" inputMode="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: sanitisePhoneInput(event.target.value) }))} placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} className={CONTROL_CLASS} />
         {fields["phone"] && <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
         Booking email (optional)
-        <Input type="email" value={values.email} onChange={set("email")} placeholder="bookings@example.com" />
+        <Input type="email" value={values.email} onChange={set("email")} placeholder="bookings@example.com" className={CONTROL_CLASS} />
         {fields["email"] && <span className="text-xs font-medium text-destructive">{fields["email"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
         Starting price (optional)
-        <Input inputMode="numeric" value={values.priceFrom} onChange={set("priceFrom")} placeholder="250" />
+        <Input inputMode="numeric" value={values.priceFrom} onChange={set("priceFrom")} placeholder="250" className={CONTROL_CLASS} />
         <span className="text-xs font-normal text-muted-foreground">
           Only if you have a real starting price. Leave it blank and the card simply shows no price —
           searches can then never promise a budget you cannot meet.
@@ -226,7 +228,7 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
       <label className="grid gap-2 text-sm font-semibold sm:col-span-2">
         What you offer
-        <Textarea rows={6} value={values.description} onChange={set("description")} placeholder="Characters, party length, travel area, what is included…" />
+        <Textarea rows={6} value={values.description} onChange={set("description")} placeholder="Characters, party length, travel area, what is included…" className={CONTROL_AREA_CLASS} />
         {fields["description"] && <span className="text-xs font-medium text-destructive">{fields["description"]}</span>}
       </label>
     </div>
@@ -248,7 +250,7 @@ export function ListBusinessPage() {
   }
 
   if (!user) {
-    return <main className="min-h-screen bg-surface pb-24">
+    return <main className="min-h-screen bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <p className="font-bold text-primary">List your business</p>
         <h1 className="mt-2 font-display text-4xl font-extrabold sm:text-5xl">Get found by local families.</h1>
@@ -276,7 +278,7 @@ export function ListBusinessPage() {
     </main>;
   }
 
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
       <p className="font-bold text-primary">List your business</p>
       <h1 className="mt-2 font-display text-4xl font-extrabold sm:text-5xl">Add your party business.</h1>
@@ -308,11 +310,11 @@ function LeadRow({ lead }: { lead: QuoteRequestRow }) {
       <div>
         <p className="font-display text-lg font-extrabold">{lead.name}</p>
         <p className="text-sm text-muted-foreground">
-          {[lead.event_type, lead.city, lead.event_date, lead.guest_count ? `${lead.guest_count} children` : "", lead.budget]
+          {[lead.event_type, lead.city, formatDate(lead.event_date), lead.guest_count ? `${lead.guest_count} children` : "", lead.budget]
             .filter(Boolean).join(" · ") || "No party details supplied"}
         </p>
       </div>
-      <span className="text-xs text-muted-foreground">{new Date(lead.created_at).toLocaleDateString()}</span>
+      <span className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</span>
     </div>
     {lead.details && <p className="mt-3 whitespace-pre-line text-sm leading-7">{lead.details}</p>}
     <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -350,7 +352,7 @@ export function VendorDashboardPage({ focus = "listings" }: { focus?: "listings"
   if (loading) return <Centered note="Checking your account…" />;
 
   if (!user) {
-    return <main className="min-h-screen bg-surface pb-24">
+    return <main className="min-h-screen bg-surface">
       <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <p className="font-bold text-primary">For entertainers</p>
         <h1 className="mt-2 font-display text-4xl font-extrabold">Your business dashboard</h1>
@@ -365,7 +367,7 @@ export function VendorDashboardPage({ focus = "listings" }: { focus?: "listings"
 
   const editingListing = listings.find((row) => row.id === editing);
 
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

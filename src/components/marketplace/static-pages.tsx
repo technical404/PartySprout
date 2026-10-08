@@ -37,7 +37,7 @@ function StaticPage({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-surface pb-24">
+    <main className="min-h-screen bg-surface">
       <header className="border-b bg-background">
         <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
           <p className="font-bold text-primary">{kicker}</p>

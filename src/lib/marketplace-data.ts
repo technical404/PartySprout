@@ -43,7 +43,11 @@ export type Vendor = {
   phone: string | null;
   /** The business's own site icon, or null when it has none / is unknown. */
   logo: string | null;
+  /** The picture its card shows: the business's own when it has one, else the stock
+   *  picture for its category. */
   image: string;
+  /** The category's stock picture, for when `image` is a hotlink that has gone away. */
+  fallbackImage: string;
   description: string;
   featured: boolean;
 };
@@ -55,6 +59,8 @@ export type ListingRow = {
   description?: string | null;
   website?: string | null;
   icon_url?: string | null;
+  /** The business's own homepage picture, cached by Database/fetch-images.cjs. */
+  image_url?: string | null;
   phone?: string | null;
   price_from?: number | null;
   rating?: number | null;
@@ -180,6 +186,16 @@ function safeLogoUrl(value: string | null | undefined): string | null {
   }
 }
 
+/**
+ * Stricter than safeLogoUrl: https only. The site is served over https, so an http
+ * picture would be blocked as mixed content and the card would show a gap where it
+ * could have shown the category picture instead.
+ */
+function safeImageUrl(value: string | null | undefined): string | null {
+  const url = safeLogoUrl(value);
+  return url && url.startsWith('https://') ? url : null;
+}
+
 export function mapVendor(row: ListingRow): Vendor {
   const location = [row.city_name, row.state_code].filter(Boolean).join(", ");
   const extraCats = (row.categories || []).map((c) => c.name).filter(Boolean);
@@ -196,7 +212,8 @@ export function mapVendor(row: ListingRow): Vendor {
     website: row.website || null,
     phone: row.phone || null,
     logo: safeLogoUrl(row.icon_url),
-    image: categoryImage(row.category_slug),
+    image: safeImageUrl(row.image_url) ?? categoryImage(row.category_slug),
+    fallbackImage: categoryImage(row.category_slug),
     description: row.description || "",
     featured: Boolean(row.is_featured),
   };

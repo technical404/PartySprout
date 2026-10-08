@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS listings (
   -- Database/fetch-icons.cjs. NULL means "not checked yet"; '' means
   -- "checked, the site offers no usable icon".
   icon_url     TEXT,
+  -- Absolute https URL of the picture the business uses on its own homepage,
+  -- resolved once by Database/fetch-images.cjs and hot-linked by its card. NULL
+  -- means "not checked yet"; '' means "checked, nothing usable over https".
+  image_url    TEXT,
   phone        TEXT,
   email        TEXT,
   price_from   REAL,

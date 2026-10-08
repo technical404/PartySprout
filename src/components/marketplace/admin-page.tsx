@@ -4,11 +4,13 @@ import {
   AlertCircle, Building2, CheckCheck, Clock3, ExternalLink, Loader2, Mail, ShieldCheck, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CONTROL_CLASS } from "@/components/ui/control";
 import { Input } from "@/components/ui/input";
 import { Footer } from "./footer";
 import { StatusChip } from "./vendor-pages";
 import { LoginPanel } from "./account-pages";
 import { api, type OwnedListing } from "@/lib/api";
+import { formatDate } from "@/lib/dates";
 import type { QuoteRequestRow } from "@/lib/marketplace-data";
 import { useSession } from "@/lib/session";
 
@@ -68,7 +70,7 @@ export function AdminPage() {
   if (loading) return <main className="grid min-h-screen place-items-center bg-surface"><p className="text-muted-foreground">Checking your account…</p></main>;
 
   if (!user || user.role !== "admin") {
-    return <main className="min-h-screen bg-surface pb-24">
+    return <main className="min-h-screen bg-surface">
       <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <p className="font-bold text-primary">Administration</p>
         <h1 className="mt-2 font-display text-4xl font-extrabold">Admin sign-in</h1>
@@ -86,7 +88,7 @@ export function AdminPage() {
 
   const pending = byStatus.find((row) => row.status === "pending")?.total ?? 0;
 
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -167,7 +169,7 @@ export function AdminPage() {
 
               {listing.status !== "active" && <label className="mt-4 grid max-w-xl gap-2 text-sm font-semibold">
                 Reviewer note (optional, shown to the vendor)
-                <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain what needs changing" />
+                <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain what needs changing" className={CONTROL_CLASS} />
               </label>}
             </li>)}
           </ul>}
@@ -190,12 +192,12 @@ export function AdminPage() {
               </thead>
               <tbody>
                 {quotes.map((quote: QuoteRequestRow) => <tr key={quote.id} className="border-b last:border-0">
-                  <td className="p-3 whitespace-nowrap">{new Date(quote.created_at).toLocaleDateString()}</td>
+                  <td className="p-3 whitespace-nowrap">{formatDate(quote.created_at)}</td>
                   <td className="p-3">
                     <span className="block font-semibold">{quote.name}</span>
                     <a className="inline-flex items-center gap-1 text-primary" href={`mailto:${quote.email}`}><Mail className="size-3.5" />{quote.email}</a>
                   </td>
-                  <td className="p-3">{[quote.city, quote.event_date, quote.budget].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="p-3">{[quote.city, formatDate(quote.event_date), quote.budget].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="p-3">{quote.vendor_name ?? "Any matching entertainer"}</td>
                 </tr>)}
               </tbody>

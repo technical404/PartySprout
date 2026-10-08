@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Footer, QuoteDialog, Rating, SearchPanel, VendorLogo } from "./marketplace";
+import { Footer, QuoteDialog, Rating, SearchPanel, VendorLogo, imageFallback } from "./marketplace";
 import {
   BrowseByCitySection, CelebrationJourneySection, FeaturedCarouselSection,
   GeneralQuoteCta, PopularEntertainmentSection,
@@ -61,7 +61,7 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
   const [quote, setQuote] = useState(false);
   return <main>
     <section className="relative h-[420px] overflow-hidden">
-      <img src={vendor.image} alt={vendor.name} className="h-full w-full object-cover" />
+      <img src={vendor.image} onError={imageFallback(vendor.fallbackImage)} alt={vendor.name} className="h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-foreground/90 via-transparent to-transparent" />
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl p-6 text-background">
         <p className="font-bold text-rating">{vendor.category}</p>

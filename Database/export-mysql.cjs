@@ -52,6 +52,7 @@ const parts = [
     'description',
     'website',
     'icon_url',
+    'image_url',
     'phone',
     'email',
     'price_from',

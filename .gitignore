@@ -34,8 +34,6 @@ Database/mysql-data.sql
 Database/description-updates.sql
 # Undo snapshots written before Database/fetch-about.cjs overwrites descriptions
 Database/description-backup-*.json
-# Crawl evidence written by scripts/audit-listing-categories.cjs (re-runnable)
-Database/category-audit.json
 deploy/db-config.php
 
 # Wrangler / Cloudflare

@@ -1,19 +1,22 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { BadgeCheck, Building2, CalendarDays, Compass, Filter, Heart, Home, MapPin, Menu, MessageCircle, Phone, Search, ShieldCheck, SlidersHorizontal, Star, UserRound, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CONTROL_CLASS } from "@/components/ui/control";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { formatDate, todayISO } from "@/lib/dates";
 import {
   EMPTY_SEARCH, fetchCategories, fetchCitySuggestions, fetchDirectorySummary, fetchListings,
   type Category, type City, type DirectorySummary, type SearchState, type SortKey, type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
 import { useSession } from "@/lib/session";
-import { Brand } from "./footer";
+import { Brand, Footer } from "./footer";
 import { QuoteDialog } from "./quote-form";
 
 // Re-exported so existing importers keep working (pages.tsx, home-sections.tsx).
@@ -34,8 +37,17 @@ export function SiteHeader() {
           sit exactly under it. The height lives on the header, whose border is
           inside those 72px, so the stuck bar is flush rather than a pixel out.
           Keep the two numbers in step. */}
-      <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="relative mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <Brand />
+        {/* Below sm the row has no space for the full CTA set, so the handset and
+            the two words carry the same link in the middle of the header. It is
+            centred on the row rather than left in a justify-between gap, so it sits
+            in the same place whatever the logo and the menu button measure. The
+            number is left to the wider breakpoints, where there is room for it, and
+            the accessible name is still the whole phrase. */}
+        <span className="absolute left-1/2 -translate-x-1/2 sm:hidden">
+          <Button asChild className="call-button h-auto px-3 py-2 text-sm font-bold"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" />Call us</a></Button>
+        </span>
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
           <Link to="/explore" className="nav-link">Explore</Link>
           <Link to="/search" search={{ q: "", location: "" }} className="nav-link">Categories</Link>
@@ -91,18 +103,38 @@ function MobileNavLink({ to, icon, label }: { to: "/" | "/explore" | "/favorites
 }
 
 /**
+ * "non-mascot-characters" -> "Non Mascot Characters". Used to fill the search box
+ * with the category that was searched before the category list has arrived, which
+ * is a moment later; the real name then replaces it if it differs.
+ */
+function categoryLabel(slug: string) {
+  return slug ? slug.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase()) : "";
+}
+
+/**
  * Hero/compact search. The date and children fields are carried into the search
  * URL and then into the quote request — they are not availability filters,
  * because the directory has no availability data to filter on.
  */
-export function SearchPanel({ compact = false, initial = "", initialLocation = "", initialDate = "", initialKids = "" }: {
+export function SearchPanel({ compact = false, initial = "", initialLocation = "", initialDate = "", initialKids = "", initialCategory = "", carry }: {
   compact?: boolean;
   initial?: string;
   initialLocation?: string;
   initialDate?: string;
   initialKids?: string;
+  /**
+   * Set when the last search was a category rather than free text. The box shows
+   * the category's name, so a category search no longer leaves it empty - and
+   * because the box then holds that name, submitting it again keeps the filter.
+   */
+  initialCategory?: string;
+  /**
+   * Filters this box cannot express (sort order, price, rating). They are carried
+   * through a re-submit rather than dropped without a word.
+   */
+  carry?: Record<string, string>;
 }) {
-  const [query, setQuery] = useState(initial);
+  const [query, setQuery] = useState(initial || categoryLabel(initialCategory));
   const [location, setLocation] = useState(initialLocation);
   const [date, setDate] = useState(initialDate);
   const [kids, setKids] = useState(initialKids);
@@ -110,15 +142,24 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   const [queryOpen, setQueryOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  /** Whether the visitor has typed in the query box themselves. */
+  const typed = useRef(false);
   const queryId = compact ? "compact-query" : "hero-query";
   const locationId = compact ? "compact-location" : "hero-location";
 
   useEffect(() => {
-    setQuery(initial);
+    typed.current = false;
+    setQuery(initial || categoryLabel(initialCategory));
     setLocation(initialLocation);
     setDate(initialDate);
     setKids(initialKids);
-  }, [initial, initialLocation, initialDate, initialKids]);
+  }, [initial, initialCategory, initialLocation, initialDate, initialKids]);
+
+  useEffect(() => {
+    if (typed.current || initial || !initialCategory) return;
+    const match = categories.find((category) => category.slug === initialCategory);
+    if (match && match.name !== query) setQuery(match.name);
+  }, [categories, initialCategory, initial, query]);
 
   useEffect(() => {
     void fetchCategories().then(setCategories);
@@ -152,7 +193,7 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
     ).slice(0, 8);
   }, [categories, query]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayISO(), []);
 
   const matchedCategory = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -167,7 +208,8 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   return <form
     onSubmit={(event) => {
       event.preventDefault();
-      const params = new URLSearchParams({ location });
+      const params = new URLSearchParams(carry ?? {});
+      params.set("location", location);
       if (matchedCategory) params.set("category", matchedCategory.slug);
       else if (query.trim()) params.set("q", query.trim());
       if (date) params.set("date", date);
@@ -184,7 +226,7 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
           value={query}
           autoComplete="off"
           placeholder="Superhero, princess, magician..."
-          onChange={(event) => { setQuery(event.target.value); setQueryOpen(true); }}
+          onChange={(event) => { typed.current = true; setQuery(event.target.value); setQueryOpen(true); }}
           onFocus={() => setQueryOpen(true)}
           onBlur={() => window.setTimeout(() => setQueryOpen(false), 120)}
         />
@@ -196,7 +238,7 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
               <button
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => { setQuery(category.name); setQueryOpen(false); }}
+                onClick={() => { typed.current = true; setQuery(category.name); setQueryOpen(false); }}
               >
                 <span>{category.name}</span>
                 <span>{category.count} businesses</span>
@@ -238,11 +280,11 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
       )}
     </div>
     {!compact && <>
-      <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><Input id="party-date" type="date" min={today} value={date} onChange={(event) => setDate(event.target.value < today ? "" : event.target.value)} /></div></div>
+      <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><DateField id="party-date" min={today} value={date} onChange={setDate} wrapperClassName="min-w-0 flex-1" /></div></div>
       <div className="search-field"><label htmlFor="party-kids">Kids</label><div><Users /><Input id="party-kids" type="number" min="1" value={kids} onChange={(event) => setKids(event.target.value)} placeholder="How many?" /></div></div>
     </>}
     <Button type="submit" size="lg" className={cn("h-14", compact ? "sm:h-12" : "sm:h-[4.5rem]")}><Search />{compact ? "Search" : "Find party entertainment"}</Button>
-    {!compact && (date || kids) && <p className="col-span-full pt-1 text-xs text-muted-foreground">We will carry {date ? `the ${date} date` : "your date"}{kids ? ` and ${kids} children` : ""} through to your quote request.</p>}
+    {!compact && (date || kids) && <p className="col-span-full pt-1 text-xs text-muted-foreground">We will carry {date ? `the ${formatDate(date)} date` : "your date"}{kids ? ` and ${kids} children` : ""} through to your quote request.</p>}
   </form>;
 }
 
@@ -287,15 +329,45 @@ export function VendorLogo({ vendor, className }: { vendor: Vendor; className?: 
   return <span aria-hidden className={cn("grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-primary-soft font-display text-sm font-extrabold text-primary", className)}>{initials(vendor.name)}</span>;
 }
 
+/**
+ * A card's picture is hot-linked from the business's own site, so it can 404, expire
+ * or stop serving us at any time. When it does, the picture for its category takes
+ * over rather than leaving a broken image on the card.
+ */export function imageFallback(fallback: string) {
+  return (event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    // The flag stops a second failure (of the fallback itself) from looping.
+    if (image.dataset["fellBack"]) return;
+    image.dataset["fellBack"] = "1";
+    image.src = fallback;
+  };
+}
+
+/** Different ways a description writes a number: (555) 123-4567, 555.123.4567, 555 123 4567. */
+const PHONE_IN_TEXT = /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+
+/**
+ * Many businesses write their phone number into the description they gave us. On
+ * the card that would put the number back in front of the visitor, which is what
+ * the card is meant not to do — the number lives on the business's own page.
+ */
+function withoutPhone(text: string) {
+  return text
+    .replace(PHONE_IN_TEXT, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,!?])/g, "$1")
+    .trim();
+}
+
 export function VendorCard({ vendor, compact = false, active, showCompare = false }: { vendor: Vendor; compact?: boolean; active?: boolean; showCompare?: boolean }) {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const { isComparing, toggleCompare } = useSaved();
   return <article className={cn("vendor-card group", compact && "vendor-card-compact", active && "ring-2 ring-primary")}>
-    <div className="relative overflow-hidden"><img src={vendor.image} alt="" loading="lazy" width={700} height={460} className="vendor-image" /><FavoriteButton id={vendor.id} name={vendor.name} />{vendor.featured && <span className="absolute left-3 top-3 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-bold text-background backdrop-blur">Featured</span>}</div>
+    <div className="relative overflow-hidden"><img src={vendor.image} onError={imageFallback(vendor.fallbackImage)} alt="" loading="lazy" width={700} height={460} className="vendor-image" /><FavoriteButton id={vendor.id} name={vendor.name} />{vendor.featured && <span className="absolute left-3 top-3 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-bold text-background backdrop-blur">Featured</span>}</div>
     <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-3"><VendorLogo vendor={vendor} className={compact ? "size-9 rounded-lg" : ""} /><div className="min-w-0"><Link to="/vendors/$slug" params={{ slug: vendor.slug }} className="font-display text-lg font-extrabold hover:text-primary">{vendor.name}</Link><div className="mt-1 flex flex-wrap items-center gap-2">{vendor.rating > 0 && <Rating value={vendor.rating} reviews={vendor.reviews} />}{vendor.website && <span className="inline-flex items-center gap-1 text-xs font-bold text-trust"><BadgeCheck className="size-4" />Website</span>}</div></div></div>{vendor.price > 0 && <div className="text-right"><b className="text-lg">${vendor.price}</b><p className="text-xs text-muted-foreground">starting</p></div>}</div>
-      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground"><span>{vendor.category}</span>{vendor.location && <><span>•</span><span>{vendor.location}</span></>}{vendor.phone && <><span>•</span><span>{vendor.phone}</span></>}</div>
-      <div className="vendor-details"><p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{vendor.description}</p></div>
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground"><span>{vendor.category}</span>{vendor.location && <><span>•</span><span>{vendor.location}</span></>}</div>
+      <div className="vendor-details"><p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{withoutPhone(vendor.description)}</p></div>
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">{showCompare && <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"><Checkbox checked={isComparing(vendor.id)} onCheckedChange={() => toggleCompare(vendor.id)} />Compare</label>}<QuoteDialog vendor={vendor} open={quoteOpen} onOpenChange={setQuoteOpen} /><Button size="sm" onClick={() => setQuoteOpen(true)}>Request quote</Button></div>
     </div>
   </article>;
@@ -382,9 +454,9 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
         <legend className="mb-3 text-sm font-bold">Starting price</legend>
         <p className="mb-3 text-xs text-muted-foreground">{summary?.pricedListings} of {summary?.listings} businesses publish a price.</p>
         <div className="flex items-center gap-2">
-          <Input inputMode="numeric" aria-label="Minimum price" placeholder="Min" value={state.priceMin ?? ""} onChange={(event) => onChange({ priceMin: event.target.value === "" ? null : Number(event.target.value), page: 1 })} />
+          <Input inputMode="numeric" aria-label="Minimum price" placeholder="Min" value={state.priceMin ?? ""} onChange={(event) => onChange({ priceMin: event.target.value === "" ? null : Number(event.target.value), page: 1 })} className={CONTROL_CLASS} />
           <span className="text-muted-foreground">–</span>
-          <Input inputMode="numeric" aria-label="Maximum price" placeholder="Max" value={state.priceMax ?? ""} onChange={(event) => onChange({ priceMax: event.target.value === "" ? null : Number(event.target.value), page: 1 })} />
+          <Input inputMode="numeric" aria-label="Maximum price" placeholder="Max" value={state.priceMax ?? ""} onChange={(event) => onChange({ priceMax: event.target.value === "" ? null : Number(event.target.value), page: 1 })} className={CONTROL_CLASS} />
         </div>
       </fieldset>
     ) : (
@@ -396,7 +468,7 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
 
     <fieldset>
       <legend className="mb-3 text-sm font-bold">City or state</legend>
-      <Input value={state.location} onChange={(event) => onChange({ location: event.target.value, page: 1 })} placeholder="Dallas or TX" aria-label="City or state" />
+      <Input value={state.location} onChange={(event) => onChange({ location: event.target.value, page: 1 })} placeholder="Dallas or TX" aria-label="City or state" className={CONTROL_CLASS} />
     </fieldset>
   </div>;
 }
@@ -515,7 +587,7 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
         searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_4.5rem)]",
       )}
     >
-      <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} /></div>
+      <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialCategory={active.category} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} carry={{ ...(active.category ? { category: active.category } : {}), ...(active.sort ? { sort: active.sort } : {}), ...(active.priceMin != null ? { priceMin: String(active.priceMin) } : {}), ...(active.priceMax != null ? { priceMax: String(active.priceMax) } : {}), ...(active.ratingMin != null ? { ratingMin: String(active.ratingMin) } : {}) }} /></div>
     </div>
     <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -553,7 +625,7 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
       {(active.date || active.kids) && <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary-soft p-4 text-sm">
         <Building2 className="size-4 text-primary" />
         <span>
-          Planning for {active.date ? active.date : "a date you have not set"}
+          Planning for {active.date ? formatDate(active.date) : "a date you have not set"}
           {active.kids ? ` with ${active.kids} children` : ""}. The directory does not track availability —
           send one quote request and businesses reply with what they can do.
         </span>
@@ -593,6 +665,9 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
       <Button variant="secondary" size="sm" asChild><Link to="/compare">Compare now</Link></Button>
       <Button variant="ghost" size="icon" onClick={clearCompare} aria-label="Clear comparison"><X /></Button>
     </div>}
+    {/* The page's own footer. Its mobile padding keeps the last links clear of the
+        fixed bottom navigation, which is why the page no longer needs its own. */}
+    <Footer />
   </main>;
 }
 

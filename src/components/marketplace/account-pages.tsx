@@ -4,9 +4,11 @@ import {
   AlertCircle, Check, Heart, Loader2, LogOut, Scale, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CONTROL_CLASS } from "@/components/ui/control";
 import { Input } from "@/components/ui/input";
 import { Footer } from "./footer";
 import { Rating, VendorCard, VendorLogo } from "./marketplace";
+import { formatDate } from "@/lib/dates";
 import {
   fetchListingsByIds, fetchMyQuoteRequests,
   type Category, type QuoteRequestRow, type Vendor,
@@ -88,26 +90,26 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
     <form onSubmit={submit} className="mt-5 grid gap-4" noValidate>
       {mode === "signup" && <label className="grid gap-2 text-sm font-semibold">
         Your name
-        <Input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="Alex Rivera" required />
+        <Input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="Alex Rivera" required className={CONTROL_CLASS} />
         {fields["name"] && <span className="text-xs font-medium text-destructive">{fields["name"]}</span>}
       </label>}
 
       <label className="grid gap-2 text-sm font-semibold">
         Email
-        <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required />
+        <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required className={CONTROL_CLASS} />
         {fields["email"] && <span className="text-xs font-medium text-destructive">{fields["email"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
         Password
-        <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="At least 8 characters" required minLength={8} />
+        <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="At least 8 characters" required minLength={8} className={CONTROL_CLASS} />
         {fields["password"] && <span className="text-xs font-medium text-destructive">{fields["password"]}</span>}
       </label>
 
       {mode === "signup" && <>
         <label className="grid gap-2 text-sm font-semibold">
           Phone (optional)
-          <Input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} autoComplete="tel" placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} />
+          <Input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} autoComplete="tel" placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} className={CONTROL_CLASS} />
           {fields["phone"] && <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>}
         </label>
         <fieldset className="grid gap-2">
@@ -135,7 +137,7 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
 }
 
 export function LoginPage() {
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2">
       <div>
         <p className="font-bold text-primary">Your Hire Party Characters account</p>
@@ -177,11 +179,11 @@ function QuoteRow({ quote }: { quote: QuoteRequestRow }) {
           {quote.vendor_name ? `For ${quote.vendor_name}` : "Sent to matching entertainers"}
         </p>
         <p className="text-sm text-muted-foreground">
-          {[quote.event_type, quote.city, quote.event_date, quote.guest_count ? `${quote.guest_count} children` : "", quote.budget]
+          {[quote.event_type, quote.city, formatDate(quote.event_date), quote.guest_count ? `${quote.guest_count} children` : "", quote.budget]
             .filter(Boolean).join(" · ")}
         </p>
       </div>
-      <span className="text-xs text-muted-foreground">{new Date(quote.created_at).toLocaleDateString()}</span>
+      <span className="text-xs text-muted-foreground">{formatDate(quote.created_at)}</span>
     </div>
     {quote.details && <p className="mt-3 text-sm leading-7 text-muted-foreground">{quote.details}</p>}
     <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -215,7 +217,7 @@ export function AccountPage() {
   if (loading) return <main className="grid min-h-screen place-items-center bg-surface"><p className="text-muted-foreground">Checking your account…</p></main>;
 
   if (!user) {
-    return <main className="min-h-screen bg-surface pb-24">
+    return <main className="min-h-screen bg-surface">
       <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
         <p className="font-bold text-primary">My account</p>
         <h1 className="mt-2 font-display text-4xl font-extrabold">Log in to see your parties</h1>
@@ -249,7 +251,7 @@ export function AccountPage() {
     setStatus("saved");
   }
 
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -284,15 +286,15 @@ export function AccountPage() {
             <form onSubmit={save} className="mt-4 grid gap-4">
               <label className="grid gap-2 text-sm font-semibold">
                 Name
-                <Input value={name} onChange={(event) => setName(event.target.value)} required />
+                <Input value={name} onChange={(event) => setName(event.target.value)} required className={CONTROL_CLASS} />
               </label>
               <label className="grid gap-2 text-sm font-semibold">
                 Phone (optional)
-                <Input type="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} inputMode="tel" />
+                <Input type="tel" value={phone} onChange={(event) => setPhone(sanitisePhoneInput(event.target.value))} inputMode="tel" className={CONTROL_CLASS} />
               </label>
               <label className="grid gap-2 text-sm font-semibold">
                 Email
-                <Input value={user.email} disabled />
+                <Input value={user.email} disabled className={CONTROL_CLASS} />
                 <span className="text-xs font-normal text-muted-foreground">Email changes go through support, so no one can take over an account.</span>
               </label>
               <div className="flex items-center gap-3">
@@ -485,7 +487,7 @@ export function QuotesPage() {
 
   if (loading) return <main className="grid min-h-screen place-items-center bg-surface"><p className="text-muted-foreground">Checking your account…</p></main>;
 
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       <p className="text-sm font-bold text-primary">Your requests</p>
       <h1 className="font-display text-3xl font-extrabold">My quote requests</h1>
@@ -529,7 +531,7 @@ export function QuotesPage() {
 /* ------------------------------------------------------------------------- */
 
 export function NotBuiltYet({ title, what, instead }: { title: string; what: string; instead?: ReactNode }) {
-  return <main className="min-h-screen bg-surface pb-24">
+  return <main className="min-h-screen bg-surface">
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <p className="text-sm font-bold text-primary">Not part of Hire Party Characters yet</p>
       <h1 className="mt-2 font-display text-3xl font-extrabold">{title}</h1>

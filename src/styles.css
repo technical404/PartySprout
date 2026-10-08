@@ -98,45 +98,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .search-field label { display: block; margin: 0 0 .2rem .2rem; color: var(--foreground); font-size: .65rem; font-weight: 800; text-transform: uppercase; }
 .search-field > div { display: flex; align-items: center; gap: .35rem; }
 /* `flex: none` keeps each icon at its full 1rem. Without it the `w-full` inputs
-   squeeze their flex sibling, and the date input's larger intrinsic width
-   collapsed the calendar icon to 0px — leaving the date text flush with the
-   field edge instead of lined up with the other fields' text. */
+   squeeze their flex sibling and the icon collapses to 0px, leaving the text
+   flush with the field edge instead of lined up with the other fields' text. */
 .search-field svg { flex: none; width: 1rem; color: var(--primary); }
 .search-field input { min-width: 0; height: 2rem; border: 0; padding: 0; box-shadow: none; background: transparent; }
 .search-field input:focus-visible { box-shadow: none; }
-/* Native date inputs paint their own calendar control at the far right of a
-   stretched field. Size the When cell to the value, and let the whole field
-   open the picker so we do not show two calendar icons. */
-.search-field input[type="date"] {
-  position: relative;
-  width: 9.75rem;
-  max-width: 100%;
-  flex: none;
-}
-.search-field input[type="date"]::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-/* The quote wizard's date question wants the same thing: one calendar icon, and
-   a box that opens the picker wherever it is clicked rather than only on the
-   glyph. Stretching the glyph over the field does it in WebKit/Blink. */
-input.date-field { position: relative; cursor: pointer; }
-input.date-field::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  cursor: pointer;
-}
 .vendor-card { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: .75rem; background: var(--background); box-shadow: 0 6px 24px color-mix(in oklab,var(--foreground) 6%,transparent); transition: box-shadow .3s, transform .3s; }
 .vendor-card:hover { transform: translateY(-2px); box-shadow: 0 14px 38px color-mix(in oklab,var(--foreground) 12%,transparent); }
 .vendor-image { width: 100%; height: 13rem; object-fit: cover; transition: transform .5s; }

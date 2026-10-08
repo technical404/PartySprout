@@ -509,7 +509,7 @@ function select_listings(mysqli $db, string $whereSql, array $params, string $or
     $args = $limit === null ? $params : array_merge($params, [$limit, $offset]);
     $rows = fetch_all(
         $db,
-        "SELECT l.id, l.name, l.slug, l.description, l.website, l.icon_url, l.phone, l.price_from, l.rating, l.review_count, l.is_featured,
+        "SELECT l.id, l.name, l.slug, l.description, l.website, l.icon_url, l.image_url, l.phone, l.price_from, l.rating, l.review_count, l.is_featured,
                 l.status, l.created_at,
                 c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
                 COALESCE(ci.name, l.city_text) AS city_name,

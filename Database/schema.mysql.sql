@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS listings (
   description  TEXT NULL,
   website      VARCHAR(500) NULL,
   icon_url     VARCHAR(500) NULL,
+  -- Absolute https URL of the picture the business uses on its own homepage,
+  -- resolved once by Database/fetch-images.cjs and hot-linked by its card. NULL
+  -- means "not checked yet"; '' means "checked, nothing usable over https".
+  image_url    VARCHAR(500) NULL,
   phone        VARCHAR(64) NULL,
   email        VARCHAR(255) NULL,
   price_from   DECIMAL(10,2) NULL,

@@ -13,6 +13,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CONTROL_AREA_CLASS, CONTROL_CLASS } from "@/components/ui/control";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -33,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Footer } from "./footer";
+import { todayISO } from "@/lib/dates";
 import {
   fetchCategories,
   fetchCitySuggestions,
@@ -210,12 +213,6 @@ const STEPS: QuoteStep[] = [
   },
 ];
 
-/** Today in the visitor's own timezone, for the date field's earliest choice. */
-function todayISO() {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-
 /** Circular progress with the percentage sitting in the middle of the ring. */
 function ProgressRing({ value }: { value: number }) {
   const radius = 26;
@@ -255,10 +252,6 @@ function StepQuestion({ question, hint }: { question: string; hint?: string | un
     </>
   );
 }
-
-/** Shared look for every control, so a step reads the same whatever it asks. */
-const CONTROL_CLASS = "h-12 rounded-xl px-4 text-base";
-const CONTROL_INVALID = "aria-invalid:border-destructive aria-invalid:ring-destructive/30";
 
 export function RequestQuoteForm({
   vendor = null,
@@ -452,7 +445,7 @@ export function RequestQuoteForm({
               render={({ field }) => question(current.hint, (
                 <select
                   {...field}
-                  className={`${CONTROL_CLASS} ${CONTROL_INVALID} border border-input bg-transparent shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                  className={`${CONTROL_CLASS} border border-input bg-transparent shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
                 >
                   <option value="" disabled>
                     Choose one
@@ -482,7 +475,7 @@ export function RequestQuoteForm({
               name="category"
               render={({ field }) => question(current.hint, (
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}>
+                  <SelectTrigger className={`${CONTROL_CLASS}`}>
                     <SelectValue placeholder="Choose one" />
                   </SelectTrigger>
                   <SelectContent>
@@ -511,7 +504,7 @@ export function RequestQuoteForm({
                       <Input
                         autoComplete="off"
                         placeholder="Dallas, TX"
-                        className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}
+                        className={`${CONTROL_CLASS}`}
                         {...field}
                         onChange={(event) => {
                           field.onChange(event);
@@ -552,21 +545,10 @@ export function RequestQuoteForm({
               control={form.control}
               name="eventDate"
               render={({ field }) => question(current.hint, (
-                <Input
-                  type="date"
+                <DateField
                   min={todayISO()}
-                  className={`date-field ${CONTROL_CLASS} ${CONTROL_INVALID}`}
+                  className={CONTROL_CLASS}
                   {...field}
-                  onClick={(event) => {
-                    // Chromium opens the picker from the stretched calendar glyph (see
-                    // .date-field in styles.css); Firefox and Safari have to be asked,
-                    // and whichever engine already opened it throws here instead.
-                    try {
-                      event.currentTarget.showPicker();
-                    } catch {
-                      /* the picker is already open */
-                    }
-                  }}
                 />
               ))}
             />
@@ -577,7 +559,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="guestCount"
               render={({ field }) => question(current.hint, (
-                <Input inputMode="numeric" placeholder="15" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input inputMode="numeric" placeholder="15" className={`${CONTROL_CLASS}`} {...field} />
               ))}
             />
           )}
@@ -587,7 +569,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="childAge"
               render={({ field }) => question(current.hint, (
-                <Input placeholder="Mostly age 6" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input placeholder="Mostly age 6" className={`${CONTROL_CLASS}`} {...field} />
               ))}
             />
           )}
@@ -598,7 +580,7 @@ export function RequestQuoteForm({
               name="budget"
               render={({ field }) => question(current.hint, (
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger className={`${CONTROL_CLASS} ${CONTROL_INVALID}`}>
+                  <SelectTrigger className={`${CONTROL_CLASS}`}>
                     <SelectValue placeholder="Choose a range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -621,7 +603,7 @@ export function RequestQuoteForm({
                 <Textarea
                   rows={5}
                   placeholder="Superhero theme, back garden, 2pm start…"
-                  className={`min-h-32 rounded-xl px-4 py-3 text-base ${CONTROL_INVALID}`}
+                  className={CONTROL_AREA_CLASS}
                   {...field}
                 />
               ))}
@@ -633,7 +615,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="name"
               render={({ field }) => question(current.hint, (
-                <Input autoComplete="name" placeholder="Alex Rivera" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input autoComplete="name" placeholder="Alex Rivera" className={`${CONTROL_CLASS}`} {...field} />
               ))}
             />
           )}
@@ -643,7 +625,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="email"
               render={({ field }) => question(current.hint, (
-                <Input type="email" autoComplete="email" placeholder="alex@example.com" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} />
+                <Input type="email" autoComplete="email" placeholder="alex@example.com" className={`${CONTROL_CLASS}`} {...field} />
               ))}
             />
           )}
@@ -653,7 +635,7 @@ export function RequestQuoteForm({
               control={form.control}
               name="phone"
               render={({ field }) => question(current.hint, (
-                <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="+1 555 010 2030" className={`${CONTROL_CLASS} ${CONTROL_INVALID}`} {...field} onChange={(event) => field.onChange(sanitisePhoneInput(event.target.value))} />
+                <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="+1 555 010 2030" className={`${CONTROL_CLASS}`} {...field} onChange={(event) => field.onChange(sanitisePhoneInput(event.target.value))} />
               ))}
             />
           )}
@@ -756,7 +738,7 @@ export function RequestQuotePage({ vendorSlug = "", prefill }: {
   }, [prefill?.city, prefill?.date, prefill?.kids, prefill?.category]);
 
   return (
-    <main className="min-h-screen bg-surface pb-24">
+    <main className="min-h-screen bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="max-w-3xl">
           <p className="font-bold text-primary">Request a quote</p>

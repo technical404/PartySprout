@@ -249,7 +249,7 @@ function selectListings(whereSql, params, { order = 'l.name', limit, offset = 0 
   const args = limit == null ? params : [...params, limit, offset];
   return db
     .prepare(
-      `SELECT l.id, l.name, l.slug, l.description, l.website, l.icon_url, l.phone, l.price_from, l.rating, l.review_count, l.is_featured,
+      `SELECT l.id, l.name, l.slug, l.description, l.website, l.icon_url, l.image_url, l.phone, l.price_from, l.rating, l.review_count, l.is_featured,
               l.status, l.created_at,
               c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
               COALESCE(ci.name, l.city_text) AS city_name,

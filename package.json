@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "icons": "node Database/fetch-icons.cjs"
+    "icons": "node Database/fetch-icons.cjs",
+    "images": "node Database/fetch-images.cjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -28,6 +28,10 @@ function migrate() {
   // schema.sql only ever creates *missing* tables, so columns added after a
   // database already exists have to be applied here.
   addColumn('listings', 'icon_url', 'TEXT');
+  // The picture on the business's own homepage, cached by Database/fetch-images.cjs
+  // and hot-linked by its card. NULL means "not checked yet", '' means "checked,
+  // the site offers nothing usable over https".
+  addColumn('listings', 'image_url', 'TEXT');
   // Businesses submitted through /list-your-business: who sent it, and the city
   // exactly as typed when it does not match a reference city row.
   addColumn('listings', 'submitted_by', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
