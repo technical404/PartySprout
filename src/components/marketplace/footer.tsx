@@ -9,19 +9,14 @@ import { fetchCategories, type Category } from "@/lib/marketplace-data";
  * creating an import cycle with the components that need the quote form.
  */
 
-export function Brand({ compact = false }: { compact?: boolean }) {
-  return <Link to="/" className="group flex items-center gap-2" aria-label="Hire Party Characters home">
-    {/* The gift-stack mark from logo.png. The file is a lockup whose wordmark and
-        tagline are print-sized; at header height they would render ~7px tall, so
-        only the mark is used and the name stays real text beside it. */}
-    <img src="/logo-mark.png" alt="" width={88} height={120} className="h-9 w-auto transition-transform group-hover:-rotate-6" />
-    {/* The name is set on two lines on purpose, at every width. On one line it is
-        ~211px, which does not fit beside the nav and the CTAs between 640px and
-        1279px - there it wrapped mid-word and dragged "Party builder" onto two
-        lines as well. Stacked it is ~110px wide and fits from 390px to 1440px
-        without touching the 72px header. The trailing space keeps the accessible
-        text reading as "Hire Party Characters" rather than one fused word. */}
-    {!compact && <span className="font-display text-xl font-extrabold leading-tight text-inherit"><span className="block">Hire Party{" "}</span><span className="block text-primary">Characters</span></span>}
+export function Brand() {
+  return <Link to="/" className="group inline-flex items-center" aria-label="Hire Party Characters home">
+    {/* The logo is one image, wording included: the supplied lockup with the
+        near-white sheet it was rendered on flooded out (see public/logo.png), so
+        it sits on the header's translucent bar and on the footer's light pill
+        alike. Nothing repeats the name as text beside it, so the accessible name
+        comes from the link's aria-label. Drawn at 48px; the file is stored 3x. */}
+    <img src="/logo.png" alt="" width={218} height={120} className="h-12 w-auto transition-transform group-hover:scale-105" />
   </Link>;
 }
 

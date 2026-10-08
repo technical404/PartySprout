@@ -55,6 +55,62 @@ storing the same data, so it compares the engines rather than the databases.
 
 ## Run log
 
+### 2026-10-07 — iteration 14: the whole logo is the image, and nothing is set beside it
+
+The header used to draw the mark and write the name beside it as text. The user asked
+for the logo to be *only* the image — "don't use text" — so `Brand`
+(`src/components/marketplace/footer.tsx`) is now a single `<img>` and a link, and the
+`compact` prop (which existed only to hide that text) is gone with it. The name moves
+into the accessible name of the link.
+
+The image is the lockup the site was given, `logo.png` (980×550, 499,639 bytes): the
+crown-and-gift mark, "Hire Party Characters" and the swoosh in one artwork. Two things
+had to be dealt with before it could be shipped as a header asset.
+
+**It was rendered on a sheet.** The file is opaque and its corners are `(252,252,253)` —
+a near-white page with compression noise. Dropped straight into the translucent header
+it would show a pale rectangle, and in the footer it would show a bright one on the dark
+panel. The sheet is therefore removed by flooding in from the border with a tolerance of
+26 per channel, **not** by keying every near-white pixel: the artwork encloses white of
+its own, and a global key would punch holes through it. Seven enclosed regions totalling
+7,188 pixels are left alone — the star in the shield (5,496 px) and six gaps inside the
+letters — while 298,382 of 539,000 pixels (55.4%) clear. All four corners of the result
+end at alpha 0.
+
+**It was the wrong size to ship.** Cropped to its artwork it is 949×522 (ratio 1.82) and
+499 KB. The header draws it 48px tall, so `public/logo.png` is stored at **218×120** —
+3× the drawn size, 49 KB — so the browser downsamples rather than the file shipping an
+upscaled alpha ramp that barely compresses. The same reasoning as the mark in
+iteration 10, and the file is served from the site root, so the deploy uploads it with
+the other root files and md5-checks it.
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` and `npm run build` | clean / succeeds |
+| Live header logo | `/logo.png` at its real 218×120, drawn 87×48, `naturalWidth` > 0 |
+| Live header text beside the logo | none — the link's text is the empty string at every width |
+| Header at 360 / 390 / 480 / 640 / 768 / 1024 / 1280 / 1440px | inside the 72px header, clear of the nav wherever the nav is shown, no horizontal overflow — 8/8 |
+| Live footer | the same lockup on its light pill (the artwork is navy; the dark panel would swallow it) |
+| Live mobile sheet | the lockup in the sheet title, complete, not clipped |
+| No uncaught page errors | PASS |
+| Live `/logo.png` | uploaded as a root file, md5-matches the build, 200 with real bytes — not the SPA shell |
+| `python %TEMP%\ps_live_verify13.py` | 11/11 (unchanged) |
+| `node scripts/verify-phone-form.mjs https://hirepartycharacters.com` | 8/8 (unchanged) |
+
+Worth knowing:
+
+- **The words in the artwork are small by design.** At 48px the dominant "Party" is
+  ~17px and "Hire" ~8px, which is the trade-off for using the supplied artwork as the
+  whole logo. It is drawn at 48px rather than the old 36px mark to keep them readable.
+- **The hover treatment changed** from rotating the mark to a 5% scale: rotating a wide
+  lockup swings its corners towards the nav.
+- **`public/logo-mark.png` is now referenced by nothing.** It is left in place (and still
+  uploaded) so that iteration 10 can be restored by reverting one file rather than
+  regenerating the mark.
+- The colour behind the logo is only invisible because the sheet was removed: on the
+  header's `bg-background/90` bar and on the footer's `bg-background/95` pill the artwork
+  now sits on whatever is behind it.
+
 ### 2026-10-06 — iteration 13: phone fields that refuse letters, and ratings that stop at 5.0
 
 Three changes to the live site, each one verified against production rather than
