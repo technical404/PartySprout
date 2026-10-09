@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
-import { Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Crown, Gift, PawPrint, Rocket, ShieldCheck, Smile, Sparkles, Sword, VenetianMask, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Footer, QuoteDialog, Rating, SearchPanel, VendorLogo, imageFallback } from "./marketplace";
 import {
@@ -57,6 +57,116 @@ function websiteDomain(url: string): string {
   }
 }
 
+/**
+ * One shape for every activity card. The icon is a lucide component rather than a
+ * node so the map below stays a plain table of slug to icon.
+ */
+type Activity = {
+  key: string;
+  title: string;
+  description: string;
+  icon: typeof Sparkles;
+  image: string;
+  /** The category picture, for when a hotlinked business picture has gone away. */
+  fallbackImage: string;
+};
+
+/**
+ * A distinguishing mark per specialty. Keyed by the same slugs the category API
+ * uses, so an unknown specialty simply falls back to the sparkle instead of
+ * rendering nothing.
+ */
+const ACTIVITY_ICONS: Record<string, typeof Sparkles> = {
+  superheroes: ShieldCheck,
+  mascots: PawPrint,
+  princesses: Crown,
+  "star-wars": Rocket,
+  "non-mascots": VenetianMask,
+  "non-mascot-characters": VenetianMask,
+  clowns: Smile,
+  pirates: Sword,
+  holidays: Gift,
+  fairy: Sparkles,
+  fairies: Sparkles,
+  magicians: WandSparkles,
+};
+
+/**
+ * The activities a listing shows are the specialties it is registered under — the
+ * same rows the search filter uses, so the section can never advertise a service
+ * the directory does not actually list this business for. Titles and taglines come
+ * from the category table; only the first card borrows the business's own picture,
+ * the rest use the category picture.
+ */
+function activitiesFor(vendor: Vendor, categories: Category[]): Activity[] {
+  const byName = new Map(categories.map((category) => [category.name.toLowerCase(), category]));
+
+  const names: string[] = [];
+  for (const candidate of [vendor.category, ...vendor.categories]) {
+    const name = candidate?.trim();
+    if (name && !names.some((seen) => seen.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+
+  return names.map((name, index) => {
+    const category = byName.get(name.toLowerCase());
+    // When the category row has not arrived yet the card still renders from the
+    // listing's own data; the description fills in with the tagline a moment later.
+    const image = category?.image ?? vendor.fallbackImage;
+    return {
+      key: category?.slug ?? name.toLowerCase(),
+      title: category?.name ?? name,
+      description: category?.description ?? "",
+      icon: ACTIVITY_ICONS[category?.slug ?? ""] ?? Sparkles,
+      image: index === 0 ? vendor.image : image,
+      fallbackImage: image,
+    };
+  });
+}
+
+/**
+ * "What this business offers": a two-column card grid on desktop, one column on a
+ * phone. Each card reads icon, then title and tagline, then a picture of the work.
+ */
+function ActivitySection({ vendor }: { vendor: Vendor }) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  useEffect(() => { void fetchCategories().then(setCategories); }, []);
+
+  const activities = useMemo(() => activitiesFor(vendor, categories), [vendor, categories]);
+  if (activities.length === 0) return null;
+
+  return <section aria-labelledby="activity-heading">
+    <p className="text-sm font-bold text-primary">Party activities</p>
+    <h2 id="activity-heading" className="mt-2 font-display text-2xl font-extrabold">What this business offers</h2>
+    <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
+      The specialties this listing is registered under in the directory.
+    </p>
+    <ul className="mt-6 grid gap-5 sm:grid-cols-2">
+      {activities.map((activity) => {
+        const Icon = activity.icon;
+        return <li key={activity.key}>
+          <article className="group flex h-full items-center gap-3 rounded-2xl border bg-background p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:gap-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft text-primary sm:size-11">
+              <Icon className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-display text-base font-extrabold">{activity.title}</h3>
+              {/* Two lines are always reserved so cards in a row keep the same height. */}
+              <p className="mt-1 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{activity.description}</p>
+            </div>
+            {/* The title beside it already names the activity, so the picture is decoration. */}
+            <img
+              src={activity.image}
+              onError={imageFallback(activity.fallbackImage)}
+              alt=""
+              className="size-14 shrink-0 rounded-xl object-cover sm:size-20"
+            />
+          </article>
+        </li>;
+      })}
+    </ul>
+  </section>;
+}
+
 export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
   const [quote, setQuote] = useState(false);
   return <main>
@@ -92,13 +202,16 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
       </div>
     </div>
     <div className="mx-auto max-w-7xl px-6 py-12">
-      <h2 className="font-display text-2xl font-extrabold">About {vendor.name}</h2>
-      <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-8 text-muted-foreground">{vendor.description || "Listed in the Hire Party Characters directory."}</p>
-      <p className="mt-6 text-sm text-muted-foreground">Categories: {vendor.categories.join(", ")}</p>
-      {vendor.price <= 0 && <p className="mt-4 max-w-3xl text-sm text-muted-foreground">
-        This business has not published a starting price, so its card and the search filters never
-        guess one. Send a quote request and they will reply with their own pricing.
-      </p>}
+      <ActivitySection vendor={vendor} />
+      <section className="mt-14" aria-labelledby="about-heading">
+        <h2 id="about-heading" className="font-display text-2xl font-extrabold">About {vendor.name}</h2>
+        <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-8 text-muted-foreground">{vendor.description || "Listed in the Hire Party Characters directory."}</p>
+        <p className="mt-6 text-sm text-muted-foreground">Categories: {vendor.categories.join(", ")}</p>
+        {vendor.price <= 0 && <p className="mt-4 max-w-3xl text-sm text-muted-foreground">
+          This business has not published a starting price, so its card and the search filters never
+          guess one. Send a quote request and they will reply with their own pricing.
+        </p>}
+      </section>
     </div>
     <QuoteDialog vendor={vendor} open={quote} onOpenChange={setQuote} />
     <Footer />
