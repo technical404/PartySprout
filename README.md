@@ -222,6 +222,21 @@ to `api/index.php`; in development the Vite plugin sends `/api/*` to the Node ha
 Only `status = 'active'` listings are ever returned by public routes; the clause is
 applied inside `buildFilters()`, so no filter combination can bypass it.
 
+### Pinned placements
+
+Three businesses lead every set of results, on every page, whatever the visitor
+filtered by — including pages whose city, category or search they do not match, and
+including a filter that matches nothing at all. The list lives in code (`PINNED_SLUGS`
+in `Database/queries.js` and `deploy/public/api/index.php`), not in `listings.pin_rank`,
+so neither a data reload nor a dashboard edit can move them. They are counted in
+`total` and hold one row each, so they never appear twice.
+
+Each of that family's per-city rows (`party-characters-for-kids-<city>`) then follows
+them on its own city's page — the city filter is what puts such a row in the result at
+all, so the ordering rule only has to lift it to the front.
+
+`pin_rank > 0` still works as a general sponsored placement, and sorts below these pins.
+
 ---
 
 ## 8. Accounts, sessions, security

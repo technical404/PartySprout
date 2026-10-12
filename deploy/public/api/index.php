@@ -413,6 +413,43 @@ function country_by_code(mysqli $db, string $code): ?array
     );
 }
 
+/**
+ * Placements that lead every set of results on every page, even where the visitor's
+ * filters (city, category, search, sort) exclude them, in the order listed here. They
+ * live in code rather than in listings.pin_rank so that neither a data reload nor a
+ * dashboard edit can move them.
+ */
+const PINNED_SLUGS = [
+    'characters-for-hire',                 // Characters for Hire
+    'party-characters-for-kids-new-york',  // Characters For Party
+    'party-characters-for-kids',           // Party Characters For Kids
+];
+
+/**
+ * The per-city siblings of the last one, one per city. Whichever belongs to the city
+ * being viewed follows the pins above; on any other page the filter keeps them out.
+ */
+const PINNED_CITY_PREFIX = 'party-characters-for-kids-';
+
+function pinned_slugs_sql(): string
+{
+    return implode(', ', array_map(static fn (string $slug): string => "'$slug'", PINNED_SLUGS));
+}
+
+/** The pins in their given order, then the city sibling, then everything else. */
+function pinned_order_sql(): string
+{
+    $case = '';
+    foreach (PINNED_SLUGS as $rank => $slug) {
+        $case .= " WHEN l.slug = '$slug' THEN $rank";
+    }
+    $sibling = count(PINNED_SLUGS);
+    return 'CASE' . $case
+        . " WHEN l.slug LIKE '" . PINNED_CITY_PREFIX . "%' THEN $sibling"
+        . ' ELSE ' . ($sibling + 1) . ' END';
+}
+
+
 function build_filters(array $filters): array
 {
     $where = ["l.status = 'active'"];
@@ -483,6 +520,18 @@ function build_filters(array $filters): array
     return ['clause' => implode(' AND ', $where), 'params' => $params];
 }
 
+/**
+ * Widens a filter clause so the pinned businesses are always in the result set, and
+ * therefore always in the total. Called only by the public directory endpoint.
+ */
+function with_pins(array $built): array
+{
+    return [
+        'clause' => '(' . $built['clause'] . ') OR l.slug IN (' . pinned_slugs_sql() . ')',
+        'params' => $built['params'],
+    ];
+}
+
 /** Whitelisted sort keys, so a query parameter can never inject SQL. */
 function order_clause(?string $sort): string
 {
@@ -495,8 +544,9 @@ function order_clause(?string $sort): string
         'newest' => 'l.created_at DESC, l.id DESC',
     ];
     $order = $sorts[$sort ?? ''] ?? $sorts['relevance'];
-    // Sponsored placements (pin_rank > 0) lead every category and every sort.
-    return 'l.pin_rank DESC, ' . $order;
+    // Hardcoded pins lead, then the per-city sibling, then sponsored placements
+    // (pin_rank > 0), which lead every category and every sort.
+    return pinned_order_sql() . ', l.pin_rank DESC, ' . $order;
 }
 
 /**
@@ -1360,7 +1410,7 @@ try {
         $pageSize = (int) ($_GET['pageSize'] ?? 24);
         $pageSize = max(1, min(48, $pageSize));
 
-        $built = build_filters($filters);
+        $built = with_pins(build_filters($filters));
         $total = (int) (fetch_value(
             $db,
             "SELECT COUNT(*) FROM listings l

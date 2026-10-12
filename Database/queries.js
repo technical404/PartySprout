@@ -158,6 +158,29 @@ function listCities({ countryId, stateId } = {}) {
     .all();
 }
 
+/**
+ * Placements that lead every set of results on every page, even where the visitor's
+ * filters (city, category, search, sort) exclude them. They live in code rather than in
+ * listings.pin_rank so that neither a data reload nor a dashboard edit can move them.
+ */
+const PINNED_SLUGS = [
+  'characters-for-hire', // Characters for Hire
+  'party-characters-for-kids-new-york', // Characters For Party
+  'party-characters-for-kids', // Party Characters For Kids
+];
+const PINNED_SLUGS_SQL = PINNED_SLUGS.map((slug) => `'${slug}'`).join(', ');
+
+/**
+ * The per-city siblings of the last one, one per city. Whichever belongs to the city
+ * being viewed follows the pins above; on any other page the filter keeps them out.
+ */
+const PINNED_CITY_PREFIX = 'party-characters-for-kids-';
+
+/** The pins in their given order, then the city sibling, then everything else. */
+const PINNED_ORDER_SQL = `CASE${PINNED_SLUGS.map(
+  (slug, rank) => ` WHEN l.slug = '${slug}' THEN ${rank}`
+).join('')} WHEN l.slug LIKE '${PINNED_CITY_PREFIX}%' THEN ${PINNED_SLUGS.length} ELSE ${PINNED_SLUGS.length + 1} END`;
+
 function buildFilters(filters) {
   const where = ["l.status = 'active'"];
   const params = [];
@@ -208,6 +231,14 @@ function buildFilters(filters) {
   return { clause: where.join(' AND '), params };
 }
 
+/**
+ * Widens a filter clause so the pinned businesses are always in the result set, and
+ * therefore always in the total. Called only by the public directory endpoint.
+ */
+function withPins({ clause, params }) {
+  return { clause: `(${clause}) OR l.slug IN (${PINNED_SLUGS_SQL})`, params };
+}
+
 /** Whitelisted sort keys, so a query parameter can never inject SQL. */
 const SORTS = {
   relevance: 'l.is_featured DESC, l.name',
@@ -220,13 +251,14 @@ const SORTS = {
 
 function orderClause(sort) {
   const order = SORTS[sort] || SORTS.relevance;
-  // Sponsored placements (pin_rank > 0) lead every category and every sort.
-  return `l.pin_rank DESC, ${order}`;
+  // Hardcoded pins lead, then the per-city sibling, then sponsored placements
+  // (pin_rank > 0), which lead every category and every sort.
+  return `${PINNED_ORDER_SQL}, l.pin_rank DESC, ${order}`;
 }
 
 
 function countListings(filters = {}) {
-  const { clause, params } = buildFilters(filters);
+  const { clause, params } = withPins(buildFilters(filters));
   const row = db
     .prepare(
       `SELECT COUNT(*) AS total
@@ -267,7 +299,7 @@ function selectListings(whereSql, params, { order = 'l.name', limit, offset = 0 
 }
 
 function listListings(filters = {}, { page = 1, pageSize = PAGE_SIZE, sort } = {}) {
-  const { clause, params } = buildFilters(filters);
+  const { clause, params } = withPins(buildFilters(filters));
   const offset = (Math.max(1, page) - 1) * pageSize;
   return selectListings(clause, params, {
     order: orderClause(sort || filters.sort),
