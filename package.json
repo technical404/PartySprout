@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "icons": "node Database/fetch-icons.cjs",
-    "images": "node Database/fetch-images.cjs"
+    "images": "node Database/fetch-images.cjs",
+    "activity-images": "node Database/fetch-activity-images.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
