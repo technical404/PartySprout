@@ -45,6 +45,9 @@ function migrate() {
   // The Google review count behind `rating`. It used to be recoverable only by
   // parsing the imported description, which the about-page fetcher replaced.
   addColumn('listings', 'review_count', 'INTEGER');
+  // Booking terms the business publishes, kept out of `description` so a reader can
+  // tell what is offered from what is required. NULL means none are known.
+  addColumn('listings', 'policies', 'TEXT');
   // Links a quote request to the account that sent it, when there was one.
   addColumn('quote_requests', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   // What the party is for ("Birthday (Child)", "Wedding Reception", …). It is

@@ -49,6 +49,8 @@ export type Vendor = {
   /** The category's stock picture, for when `image` is a hotlink that has gone away. */
   fallbackImage: string;
   description: string;
+  /** The rules the business publishes for a booking, kept out of `description`. */
+  policies: string;
   featured: boolean;
 };
 
@@ -57,6 +59,8 @@ export type ListingRow = {
   name: string;
   slug: string;
   description?: string | null;
+  /** Booking terms the business publishes; separate from the sales description. */
+  policies?: string | null;
   website?: string | null;
   icon_url?: string | null;
   /** The business's own homepage picture, cached by Database/fetch-images.cjs. */
@@ -271,6 +275,7 @@ export function mapVendor(row: ListingRow): Vendor {
     image: safeImageUrl(row.image_url) ?? categoryImage(row.category_slug),
     fallbackImage: categoryImage(row.category_slug),
     description: row.description || "",
+    policies: row.policies || "",
     featured: Boolean(row.is_featured),
   };
 }

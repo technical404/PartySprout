@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS listings (
   state_id     INTEGER          REFERENCES states(id),
   city_id      INTEGER          REFERENCES cities(id),
   description  TEXT,
+  -- The rules a customer agrees to when they book: deposits, cancellation and
+  -- refund windows, lateness, travel. Scraped vendor pages mix these into the
+  -- description, where they read as sales copy about the party; kept apart, the
+  -- description says what the business offers and this column says what it
+  -- requires. NULL means the business has published none we know of.
+  policies     TEXT,
   website      TEXT,
   -- Absolute http(s) URL of the business's own site icon, resolved once by
   -- Database/fetch-icons.cjs. NULL means "not checked yet"; '' means

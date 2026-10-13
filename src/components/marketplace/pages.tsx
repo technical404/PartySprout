@@ -210,6 +210,10 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
           guess one. Send a quote request and they will reply with their own pricing.
         </p>}
       </section>
+      {vendor.policies && <section className="mt-10" aria-labelledby="policies-heading">
+        <h2 id="policies-heading" className="font-display text-2xl font-extrabold">Policies</h2>
+        <p className="mt-4 max-w-3xl whitespace-pre-line text-base leading-8 text-muted-foreground">{vendor.policies}</p>
+      </section>}
     </div>
     <QuoteDialog vendor={vendor} open={quote} onOpenChange={setQuote} />
     <Footer />

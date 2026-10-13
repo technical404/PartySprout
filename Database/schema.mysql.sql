@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS listings (
   -- Free-text city for a submitted business whose town is not in `cities` yet.
   city_text    VARCHAR(160) NULL,
   description  TEXT NULL,
+  -- The rules a customer agrees to when they book: deposits, cancellation and
+  -- refund windows, lateness, travel. Scraped vendor pages mix these into the
+  -- description, where they read as sales copy about the party; kept apart, the
+  -- description says what the business offers and this column says what it
+  -- requires. NULL means the business has published none we know of.
+  policies     TEXT NULL,
   website      VARCHAR(500) NULL,
   icon_url     VARCHAR(500) NULL,
   -- Absolute https URL of the picture the business uses on its own homepage,

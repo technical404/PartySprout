@@ -152,8 +152,8 @@ Current state:
 
 | Table | Rows | Notes |
 |---|---|---|
-| `listings` | 491 | all `active`, no test rows |
-| `listing_categories` | 1,317 | a business can belong to several categories |
+| `listings` | 508 | all `active`, no test rows |
+| `listing_categories` | 1,666 | a business can belong to several categories |
 | `cities` | 351 | with `states` and one `countries` row (US) |
 | `categories` | 10 | superheroes, mascots, princesses, star-wars, non-mascots, clowns, pirates, holidays, fairy, magicians |
 | `subcategories` | editorial labels per category, shown on the homepage cards |
@@ -161,9 +161,17 @@ Current state:
 | `quote_requests`, `favorites` | 0 | only created by real use |
 | `sessions` | not exported | short-lived login tokens; a dev database keeps whatever test logins created |
 
-**No imported listing has a price.** The spreadsheet has no price column, so
-`price_from` is NULL for all 491. Prices are therefore only ever set by a business
-itself, cards show "Price on request", and the price filter stays hidden until
+`description` is what a business offers; `policies` is what it requires (deposit,
+cancellation and refund windows, lateness, travel). Scraped pages mix the two, burying
+“a 34% deposit is non-refundable inside 48 hours” in the middle of the sales copy, so the
+column exists to keep them apart. It is **NULL until a business publishes terms** — a
+listing with no terms shows no Policies section rather than a guess — and the vendor page
+renders it under its own heading, away from the description.
+
+**No imported listing has a price.** The spreadsheet has no price column, so every
+imported row has `price_from` NULL; the only published prices are the sixteen Party
+Characters For Kids rows, at a $255 starting rate. Cards show "Price on request" for
+everything else, and the price filter and the two price sorts only appear at all because
 `GET /api/directory-summary` reports `pricedListings > 0`. A business with no published
 price can never match a price filter — that is deliberate, not a bug.
 
@@ -233,6 +241,12 @@ including a filter that matches nothing at all. The list lives in code (`PINNED_
 in `Database/queries.js` and `deploy/public/api/index.php`), not in `listings.pin_rank`,
 so neither a data reload nor a dashboard edit can move them. They are counted in
 `total` and hold one row each, so they never appear twice.
+
+The three are `party-characters-for-hire` (partycharactersforhire.com),
+`party-characters-for-kids-new-york` ("Characters For Party") and
+`party-characters-for-kids` ("Party Characters For Kids", the general row). The business
+the first slot used to hold, "Characters for Hire ℠" (`characters-for-hire`), is still an
+active listing — it is simply no longer lifted above the rest.
 
 Each of that family's per-city rows (`party-characters-for-kids-<city>`) is one brand
 spread across cities, so the rule keeps it to **one row per city**: visiting a city pins

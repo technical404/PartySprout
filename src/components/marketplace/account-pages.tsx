@@ -401,6 +401,7 @@ export function ComparePage() {
         : <span className="text-muted-foreground">Not listed</span>,
     },
     { label: "What they offer", value: (vendor: Vendor) => <span className="text-sm text-muted-foreground">{vendor.description || "No description yet."}</span> },
+    { label: "Policies", value: (vendor: Vendor) => <span className="text-sm text-muted-foreground">{vendor.policies || "None published."}</span> },
   ] as const, []);
 
   return <main className="min-h-screen bg-surface pb-24">
