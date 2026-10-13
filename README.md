@@ -109,8 +109,11 @@ AGENTS.md                    project note for agents
 **Visitors (no account)**
 - Homepage with real counts, featured carousel, popular categories, city browse.
 - Search with free text, category, city/state, price range, minimum rating, featured
-  and sort; the whole filter set lives in the URL, so results are shareable and the
-  back button works.
+  and sort; the whole filter set lives in the URL — on `/search` through its route, and
+  on every category and city landing page through the page's own query string. A
+  refinement therefore survives the back button: returning from a business restores the
+  filtered list instead of a reset one. Only filters actually set are written, and a
+  landing page leaves out the category and city its path already states.
 - Business profile pages at `/vendors/<slug>` with contact details and a quote form.
 - Quote requests can be sent without an account.
 - Favourites work without an account (localStorage) and are merged into the account on

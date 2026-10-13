@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { BadgeCheck, Building2, CalendarDays, Compass, Filter, Heart, Home, MapPin, Menu, MessageCircle, Phone, Search, ShieldCheck, SlidersHorizontal, Star, UserRound, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
 import {
   EMPTY_SEARCH, fetchCategories, fetchCitySuggestions, fetchDirectorySummary, fetchListings,
+  searchStateFromParams, searchStateToParams,
   type Category, type City, type DirectorySummary, type SearchState, type SortKey, type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
@@ -536,17 +537,30 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
   category?: string;
   location?: string;
 }) {
-  // A page that does not own the URL (a category or city landing page) keeps its
-  // own filter state instead, initialised from the props it was given.
+  // A landing page keeps its category and city in the path, but every other filter
+  // belongs in the query string. That is what makes the back button bring a refined
+  // search back instead of resetting it: the visitor's own history entry carries the
+  // filters, whatever the page's own path happens to be.
+  const navigate = useNavigate();
+  const urlSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const [local, setLocal] = useState<SearchState>({
     ...EMPTY_SEARCH,
     ...(category ? { category } : {}),
     ...(location ? { location } : {}),
+    ...searchStateFromParams(urlSearch),
   });
   const active = state ?? local;
   const update = (next: Partial<SearchState>) => {
     onChange?.(next);
-    if (!state) setLocal((current) => ({ ...current, ...next }));
+    if (state) return; // /search owns the URL through its own route
+    const merged = { ...local, ...next };
+    setLocal(merged);
+    // The path already says which category and city this page is for, so leave them
+    // out until the visitor filters by something else.
+    const params = searchStateToParams(merged);
+    if (params["category"] === category) delete params["category"];
+    if (params["location"] === location) delete params["location"];
+    void navigate({ to: ".", search: params, replace: true });
   };
 
   const [shown, setShown] = useState<Vendor[]>([]);

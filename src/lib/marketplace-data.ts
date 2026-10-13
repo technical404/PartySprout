@@ -129,6 +129,62 @@ export const EMPTY_SEARCH: SearchState = {
   page: 1,
 };
 
+/**
+ * Reads a search state out of loose URL parameters. Anything missing, empty or
+ * unparseable is simply left out, so a link can pass just `q` and `location` while the
+ * page still receives a complete state.
+ */
+export function searchStateFromParams(raw: Record<string, unknown>): Partial<SearchState> {
+  const state: Partial<SearchState> = {};
+  const text = (key: "q" | "location" | "category" | "date" | "kids") => {
+    const value = raw[key];
+    if (value != null) state[key] = String(value);
+  };
+  const number = (key: "priceMin" | "priceMax" | "ratingMin") => {
+    const value = raw[key];
+    if (value == null || value === "") return;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) state[key] = parsed;
+  };
+
+  text("q");
+  text("location");
+  text("category");
+  text("date");
+  text("kids");
+  number("priceMin");
+  number("priceMax");
+  number("ratingMin");
+
+  const sort = raw["sort"] == null ? "" : String(raw["sort"]);
+  if (sort) state.sort = (SORTS as readonly string[]).includes(sort) ? (sort as SortKey) : "relevance";
+
+  const page = Number(raw["page"]);
+  if (Number.isFinite(page) && page > 1) state.page = Math.floor(page);
+
+  return state;
+}
+
+/**
+ * The query string for a state: only the parameters that are actually set, so refining
+ * a search does not fill the address bar - or the history entry the back button returns
+ * to - with empty ones.
+ */
+export function searchStateToParams(state: Partial<SearchState>): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (const key of ["q", "location", "category", "date", "kids"] as const) {
+    const value = (state[key] ?? "").trim();
+    if (value) params[key] = value;
+  }
+  for (const key of ["priceMin", "priceMax", "ratingMin"] as const) {
+    const value = state[key];
+    if (typeof value === "number" && Number.isFinite(value)) params[key] = String(value);
+  }
+  if (state.sort && state.sort !== "relevance") params["sort"] = state.sort;
+  if (state.page && state.page > 1) params["page"] = String(state.page);
+  return params;
+}
+
 export function categoryImage(slug: string) {
   return categoryImages[slug] ?? magicianParty;
 }
