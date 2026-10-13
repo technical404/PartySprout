@@ -232,11 +232,74 @@ function buildFilters(filters) {
 }
 
 /**
- * Widens a filter clause so the pinned businesses are always in the result set, and
- * therefore always in the total. Called only by the public directory endpoint.
+ * The predicate that says which city is being viewed, written against whichever aliases
+ * the caller has: the filter itself, the pins, and the sibling lookup each need it.
+ * Returns a null clause when no city was asked for.
  */
-function withPins({ clause, params }) {
-  return { clause: `(${clause}) OR l.slug IN (${PINNED_SLUGS_SQL})`, params };
+function cityMatchSql(cityAlias, listingAlias, stateAlias, filters) {
+  const city = String(filters.city ?? '').trim();
+  const cityId = Number(filters.cityId ?? 0);
+
+  if (city) {
+    const like = `%${city}%`;
+    return [`(${cityAlias}.name LIKE ? OR ${listingAlias}.city_text LIKE ? OR ${stateAlias}.code = ?)`, [like, like, city.toUpperCase()]];
+  }
+  if (cityId > 0) {
+    return [`${listingAlias}.city_id = ?`, [cityId]];
+  }
+  return [null, []];
+}
+
+/**
+ * The Party Characters For Kids city rows are one brand spread across cities. Visiting
+ * a city pins that city's own row; general browsing pins none of them, so fifteen
+ * near-identical rows never crowd a list. Null when no city is being viewed.
+ */
+function familyPins(filters) {
+  const [match, params] = cityMatchSql('ci', 'l', 's', filters);
+  if (match === null) return [null, []];
+  return [
+    `(l.slug LIKE '${PINNED_CITY_PREFIX}%' AND l.slug NOT IN (${PINNED_SLUGS_SQL}) AND ${match})`,
+    params,
+  ];
+}
+
+/**
+ * Keeps that family to one row per city: where a sibling is on the page the general row
+ * steps aside for it, and a city with no row of its own keeps the general one (which is
+ * why the general row is pinned everywhere).
+ */
+function familyGuard(filters) {
+  const [match, params] = cityMatchSql('sci', 'sib', 'sst', filters);
+  if (match === null) {
+    return [`(l.slug NOT LIKE '${PINNED_CITY_PREFIX}%' OR l.slug IN (${PINNED_SLUGS_SQL}))`, []];
+  }
+  const siblings = `sib.slug LIKE '${PINNED_CITY_PREFIX}%' AND sib.slug NOT IN (${PINNED_SLUGS_SQL})`;
+  return [
+    `NOT (l.slug = 'party-characters-for-kids' AND EXISTS (
+            SELECT 1 FROM listings sib
+            LEFT JOIN cities sci ON sci.id = sib.city_id
+            LEFT JOIN states sst ON sst.id = sib.state_id
+            WHERE sib.status = 'active' AND ${siblings} AND ${match}))`,
+    params,
+  ];
+}
+
+/**
+ * Widens a filter clause so the pinned businesses - and the family's row for the city on
+ * screen - are always in the result set, and therefore always in the total, then applies
+ * the one-row-per-city rule to the whole thing so the pins cannot smuggle a second row
+ * of the same brand onto a page. Called only by the public directory endpoint.
+ */
+function withPins({ clause, params }, filters) {
+  const [family, familyParams] = familyPins(filters);
+  const [guard, guardParams] = familyGuard(filters);
+  const or = [`l.slug IN (${PINNED_SLUGS_SQL})`];
+  if (family !== null) or.push(family);
+  return {
+    clause: `((${clause}) OR ${or.join(' OR ')}) AND (${guard})`,
+    params: [...params, ...familyParams, ...guardParams],
+  };
 }
 
 /** Whitelisted sort keys, so a query parameter can never inject SQL. */
@@ -258,7 +321,7 @@ function orderClause(sort) {
 
 
 function countListings(filters = {}) {
-  const { clause, params } = withPins(buildFilters(filters));
+  const { clause, params } = withPins(buildFilters(filters), filters);
   const row = db
     .prepare(
       `SELECT COUNT(*) AS total
@@ -299,7 +362,7 @@ function selectListings(whereSql, params, { order = 'l.name', limit, offset = 0 
 }
 
 function listListings(filters = {}, { page = 1, pageSize = PAGE_SIZE, sort } = {}) {
-  const { clause, params } = withPins(buildFilters(filters));
+  const { clause, params } = withPins(buildFilters(filters), filters);
   const offset = (Math.max(1, page) - 1) * pageSize;
   return selectListings(clause, params, {
     order: orderClause(sort || filters.sort),

@@ -231,9 +231,13 @@ in `Database/queries.js` and `deploy/public/api/index.php`), not in `listings.pi
 so neither a data reload nor a dashboard edit can move them. They are counted in
 `total` and hold one row each, so they never appear twice.
 
-Each of that family's per-city rows (`party-characters-for-kids-<city>`) then follows
-them on its own city's page — the city filter is what puts such a row in the result at
-all, so the ordering rule only has to lift it to the front.
+Each of that family's per-city rows (`party-characters-for-kids-<city>`) is one brand
+spread across cities, so the rule keeps it to **one row per city**: visiting a city pins
+that city's own row and the general row steps aside for it, general browsing shows the
+general row and never the fifteen per-city rows, and a city with no row of its own keeps
+the general one. `family_pins()` widens the clause for the city on screen and
+`family_guard()` applies the rule to the pins as well, so a pin cannot smuggle a second
+row of the same brand onto a page.
 
 `pin_rank > 0` still works as a general sponsored placement, and sorts below these pins.
 

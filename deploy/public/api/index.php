@@ -521,14 +521,86 @@ function build_filters(array $filters): array
 }
 
 /**
- * Widens a filter clause so the pinned businesses are always in the result set, and
- * therefore always in the total. Called only by the public directory endpoint.
+ * The predicate that says which city is being viewed, written against whichever aliases
+ * the caller has: the filter itself, the pins, and the sibling lookup each need it.
+ * Returns a null clause when no city was asked for.
  */
-function with_pins(array $built): array
+function city_match_sql(string $cityAlias, string $listingAlias, string $stateAlias, array $filters): array
 {
+    $city = trim((string) ($filters['city'] ?? ''));
+    $cityId = (int) ($filters['cityId'] ?? 0);
+
+    if ($city !== '') {
+        $like = '%' . $city . '%';
+        return ["($cityAlias.name LIKE ? OR $listingAlias.city_text LIKE ? OR $stateAlias.code = ?)", [$like, $like, strtoupper($city)]];
+    }
+    if ($cityId > 0) {
+        return ["$listingAlias.city_id = ?", [$cityId]];
+    }
+    return [null, []];
+}
+
+/**
+ * The Party Characters For Kids city rows are one brand spread across cities. Visiting
+ * a city pins that city's own row; general browsing pins none of them, so fifteen
+ * near-identical rows never crowd a list. Null when no city is being viewed.
+ */
+function family_pins(array $filters): array
+{
+    [$match, $params] = city_match_sql('ci', 'l', 's', $filters);
+    if ($match === null) {
+        return [null, []];
+    }
     return [
-        'clause' => '(' . $built['clause'] . ') OR l.slug IN (' . pinned_slugs_sql() . ')',
-        'params' => $built['params'],
+        "(l.slug LIKE '" . PINNED_CITY_PREFIX . "%' AND l.slug NOT IN (" . pinned_slugs_sql() . ") AND $match)",
+        $params,
+    ];
+}
+
+/**
+ * Keeps that family to one row per city: where a sibling is on the page the general row
+ * steps aside for it, and a city with no row of its own keeps the general one (which is
+ * why the general row is pinned everywhere).
+ */
+function family_guard(array $filters): array
+{
+    [$match, $params] = city_match_sql('sci', 'sib', 'sst', $filters);
+    if ($match === null) {
+        return [
+            "(l.slug NOT LIKE '" . PINNED_CITY_PREFIX . "%' OR l.slug IN (" . pinned_slugs_sql() . '))',
+            [],
+        ];
+    }
+    $siblings = "sib.slug LIKE '" . PINNED_CITY_PREFIX . "%' AND sib.slug NOT IN (" . pinned_slugs_sql() . ')';
+    return [
+        "NOT (l.slug = 'party-characters-for-kids' AND EXISTS (
+            SELECT 1 FROM listings sib
+            LEFT JOIN cities sci ON sci.id = sib.city_id
+            LEFT JOIN states sst ON sst.id = sib.state_id
+            WHERE sib.status = 'active' AND $siblings AND $match))",
+        $params,
+    ];
+}
+
+/**
+ * Widens a filter clause so the pinned businesses - and the family's row for the city on
+ * screen - are always in the result set, and therefore always in the total, then applies
+ * the one-row-per-city rule to the whole thing so the pins cannot smuggle a second row
+ * of the same brand onto a page. Called only by the public directory endpoint.
+ */
+function with_pins(array $built, array $filters): array
+{
+    [$family, $familyParams] = family_pins($filters);
+    [$guard, $guardParams] = family_guard($filters);
+
+    $or = 'l.slug IN (' . pinned_slugs_sql() . ')';
+    if ($family !== null) {
+        $or .= " OR $family";
+    }
+
+    return [
+        'clause' => '((' . $built['clause'] . ') OR ' . $or . ') AND (' . $guard . ')',
+        'params' => array_merge($built['params'], $familyParams, $guardParams),
     ];
 }
 
@@ -1410,7 +1482,7 @@ try {
         $pageSize = (int) ($_GET['pageSize'] ?? 24);
         $pageSize = max(1, min(48, $pageSize));
 
-        $built = with_pins(build_filters($filters));
+        $built = with_pins(build_filters($filters), $filters);
         $total = (int) (fetch_value(
             $db,
             "SELECT COUNT(*) FROM listings l
