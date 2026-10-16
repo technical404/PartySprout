@@ -9,6 +9,7 @@ import {
   Search,
   Star,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CONTROL_AREA_CLASS, CONTROL_CLASS } from "@/components/ui/control";
@@ -137,12 +138,17 @@ function Pager({
   );
 }
 
-function Notice({ error, busy }: { error: string | null; busy: boolean }) {
+function Notice({ error, busy, message }: { error: string | null; busy: boolean; message?: string | null }) {
   return (
     <>
       {error && (
         <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
+        </p>
+      )}
+      {message && (
+        <p className="mt-4 rounded-lg border border-success/30 bg-success-soft p-4 text-sm font-semibold text-success">
+          {message}
         </p>
       )}
       {busy && (
@@ -813,6 +819,9 @@ export function UsersSection() {
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const [passwordFor, setPasswordFor] = useState<AdminUser | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Confirms a change whose own dialog has just closed (a new password, a new account).
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -834,6 +843,7 @@ export function UsersSection() {
   }, [load]);
 
   async function quickChange(user: AdminUser, changes: { role?: string; status?: string }) {
+    setNotice(null);
     const nextRole = changes.role ?? user.role;
     const nextStatus = changes.status ?? user.status;
     const result = await api.adminUpdateUser(user.id, {
@@ -849,6 +859,7 @@ export function UsersSection() {
   async function confirmDelete() {
     if (!deleting) return;
     setBusy(true);
+    setNotice(null);
     const result = await api.adminDeleteUser(deleting.id);
     setBusy(false);
     setDeleting(null);
@@ -892,6 +903,15 @@ export function UsersSection() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              setNotice(null);
+              setCreating(true);
+            }}
+          >
+            <UserPlus />
+            New account
+          </Button>
           <Button variant="outline" onClick={() => void exportCsv()}>
             <Download />
             Export CSV
@@ -951,7 +971,7 @@ export function UsersSection() {
         </Select>
       </div>
 
-      <Notice error={error} busy={busy} />
+      <Notice error={error} busy={busy} message={notice} />
 
       {data && (
         <>
@@ -1054,7 +1074,20 @@ export function UsersSection() {
         <PasswordDialog
           user={passwordFor}
           onClose={() => setPasswordFor(null)}
-          onSaved={() => setPasswordFor(null)}
+          onSaved={(message) => {
+            setPasswordFor(null);
+            setNotice(message);
+          }}
+        />
+      )}
+
+      {creating && (
+        <CreateUserDialog
+          onClose={() => setCreating(false)}
+          onSaved={(message) => {
+            setCreating(false);
+            setNotice(message);
+          }}
         />
       )}
 
@@ -1168,6 +1201,146 @@ function UserDialog({
   );
 }
 
+/**
+ * Adds an account with any role. Sign-up can only ever create parents, so this is
+ * the only place an admin or a vendor is handed out from the UI.
+ */
+function CreateUserDialog({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: (message: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("parent");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+
+  const missing = 8 - password.length;
+  const hint = password.length === 0
+    ? "at least 8 characters"
+    : missing > 0
+      ? `${missing} more character${missing === 1 ? "" : "s"} needed`
+      : "long enough";
+
+  async function save() {
+    if (password.length < 8) {
+      setError("Use at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFields({});
+    const result = await api.adminCreateUser({ email, name, phone, role, password });
+    setBusy(false);
+    if (result.ok) {
+      onSaved(`Created ${result.data.user.email} as ${result.data.user.role}. Share the password out of band.`);
+      return;
+    }
+    setError(result.message);
+    setFields(result.fields ?? {});
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New account</DialogTitle>
+          <DialogDescription>
+            They sign in with this email and password. Nothing is emailed, so pass the password on
+            yourself and ask them to change it.
+          </DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="grid gap-4">
+          <Field label="Email">
+            <Input
+              className={CONTROL_CLASS}
+              type="email"
+              autoComplete="off"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            {fields["email"] && (
+              <span className="text-xs font-medium text-destructive">{fields["email"]}</span>
+            )}
+          </Field>
+          <Field label="Name">
+            <Input
+              className={CONTROL_CLASS}
+              autoComplete="off"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            {fields["name"] && (
+              <span className="text-xs font-medium text-destructive">{fields["name"]}</span>
+            )}
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Role">
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className={CONTROL_CLASS}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="parent">Parent</SelectItem>
+                  <SelectItem value="vendor">Vendor</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Phone" hint="optional">
+              <Input
+                className={CONTROL_CLASS}
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+              />
+              {fields["phone"] && (
+                <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>
+              )}
+            </Field>
+          </div>
+          <Field label="Password" hint={hint}>
+            <Input
+              className={CONTROL_CLASS}
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-invalid={missing > 0}
+            />
+            {fields["password"] && (
+              <span className="text-xs font-medium text-destructive">{fields["password"]}</span>
+            )}
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void save()} disabled={busy || email.trim() === "" || name.trim() === "" || password.length === 0}>
+            {busy && <Loader2 className="animate-spin" />}Create account
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PasswordDialog({
   user,
   onClose,
@@ -1175,18 +1348,31 @@ function PasswordDialog({
 }: {
   user: AdminUser;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (message: string) => void;
 }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A live hint and a clickable button, so a too-short password is explained
+  // rather than leaving a greyed-out button with no reason on screen.
+  const missing = 8 - password.length;
+  const hint = password.length === 0
+    ? "at least 8 characters"
+    : missing > 0
+      ? `${missing} more character${missing === 1 ? "" : "s"} needed`
+      : "long enough";
+
   async function save() {
+    if (password.length < 8) {
+      setError("Use at least 8 characters.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const result = await api.adminSetPassword(user.id, password);
     setBusy(false);
-    if (result.ok) onSaved();
+    if (result.ok) onSaved(`Password updated for ${user.email}. Their other sessions have ended.`);
     else setError(result.fields?.["password"] ?? result.message);
   }
 
@@ -1210,20 +1396,21 @@ function PasswordDialog({
             {error}
           </p>
         )}
-        <Field label="New password" hint="at least 8 characters">
+        <Field label="New password" hint={hint}>
           <Input
             className={CONTROL_CLASS}
             type="password"
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            aria-invalid={missing > 0}
           />
         </Field>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void save()} disabled={busy || password.length < 8}>
+          <Button onClick={() => void save()} disabled={busy || password.length === 0}>
             {busy && <Loader2 className="animate-spin" />}Set password
           </Button>
         </DialogFooter>

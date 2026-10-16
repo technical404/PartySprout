@@ -239,6 +239,14 @@ export const api = {
     params: { q?: string; role?: string; status?: string; page?: number; pageSize?: number } = {},
   ) => request<AdminPage<AdminUser>>(`/api/admin/users${query(params)}`),
 
+  /** Creates an account with the role the admin chose; only admins may call it. */
+  adminCreateUser: (body: { email: string; name: string; phone?: string; role: string; password: string }) =>
+    request<{ user: AdminUser }>("/api/admin/users", {
+      method: "POST",
+      ...jsonInit,
+      body: JSON.stringify(body),
+    }),
+
   adminUpdateUser: (
     id: number,
     body: { name: string; phone: string; role: string; status: string },

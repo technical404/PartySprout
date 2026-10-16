@@ -34,6 +34,8 @@ const queries = require(path.join(database, 'queries.js'));
 const BASE = (process.argv[2] || process.env.PS_BASE || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const EMAIL = process.env.PS_ADMIN_EMAIL || 'admin-ui-check@example.test';
 const PASSWORD = crypto.randomBytes(15).toString('base64url');
+// The one account this run creates through the console, removed again below.
+const madeEmail = `ui-made-${Date.now()}@example.test`;
 
 const results = [];
 function check(label, ok, detail = '') {
@@ -56,6 +58,12 @@ function removeAdmin() {
   if (user) {
     queries.adminDeleteUser(user.id);
     console.log(`\nremoved ${EMAIL} (id ${user.id}) and its sessions`);
+  }
+  // The account this run created through the console, if it got that far.
+  const made = queries.getUserByEmail(madeEmail);
+  if (made) {
+    queries.adminDeleteUser(made.id);
+    console.log(`removed ${madeEmail} (id ${made.id})`);
   }
 }
 
@@ -179,15 +187,49 @@ try {
   const pwDialog = page.getByRole('dialog');
   check('the password dialog opens', await pwDialog.isVisible());
   const setPassword = pwDialog.getByRole('button', { name: 'Set password' });
+  check('an empty password cannot be submitted', await setPassword.isDisabled());
   await pwDialog.locator('input[type="password"]').fill('short');
   await page.waitForTimeout(400);
-  check('a password under 8 characters cannot be submitted', await setPassword.isDisabled());
+  check('a short password says how much is missing', /3 more characters needed/.test(await pwDialog.innerText()), await pwDialog.innerText());
+  check('a short password leaves the button clickable', await setPassword.isEnabled());
+  await setPassword.click();
+  await page.waitForTimeout(800);
+  check('clicking with a short password explains the rule', /Use at least 8 characters/.test(await pwDialog.innerText()), (await pwDialog.innerText()).slice(-120));
+  check('a refused password leaves the dialog open', await pwDialog.isVisible());
   await pwDialog.locator('input[type="password"]').fill('long-enough-9');
   await page.waitForTimeout(400);
+  check('the hint turns positive once it is long enough', /long enough/.test(await pwDialog.innerText()), await pwDialog.innerText());
   check('a long enough password can be submitted', await setPassword.isEnabled());
   await pwDialog.getByRole('button', { name: 'Cancel' }).click();
   await page.waitForTimeout(500);
   check('the password dialog closes without changing it', (await pwDialog.count()) === 0);
+
+  // --- creating an account ------------------------------------------------
+  await page.getByRole('button', { name: 'New account' }).click();
+  await page.waitForTimeout(700);
+  const createDialog = page.getByRole('dialog');
+  check('the new-account dialog opens', await createDialog.isVisible());
+  check('it offers every role', await createDialog.getByRole('combobox').isVisible());
+  const createButton = createDialog.getByRole('button', { name: 'Create account' });
+  check('Create account waits for the required fields', await createButton.isDisabled());
+
+  await createDialog.locator('input[type="email"]').fill(madeEmail);
+  await createDialog.locator('input:not([type="email"]):not([type="password"])').first().fill('UI Made Account');
+  await createDialog.locator('input[type="password"]').fill('a-ui-made-secret');
+  await createDialog.getByRole('combobox').click();
+  await page.getByRole('option', { name: 'Admin' }).click();
+  await page.waitForTimeout(300);
+  check('Create account wakes up once the fields are filled', await createButton.isEnabled());
+  await createButton.click();
+  await page.waitForTimeout(2000);
+  check('creating an account closes the dialog', (await createDialog.count()) === 0);
+  check('the console confirms the account it made', new RegExp(`Created ${madeEmail.replace('.', '\\.')} as admin`).test(await body()), (await body()).split('\n').find((line) => /Created/.test(line)) ?? 'no notice');
+
+  await page.getByPlaceholder('Name or email').fill(madeEmail);
+  await page.waitForTimeout(1800);
+  check('the new account appears in the table', (await page.locator('table tbody tr').filter({ hasText: madeEmail }).count()) === 1);
+  await page.getByPlaceholder('Name or email').fill('');
+  await page.waitForTimeout(1500);
 
   // --- categories ---------------------------------------------------------
   await tab('Categories').click();
@@ -223,6 +265,45 @@ try {
 
   const realErrors = errors.filter((line) => !/Failed to load resource: the server responded with a status of 4\d\d/.test(line));
   check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 2).join(' | '));
+
+  // --- changing your own password -----------------------------------------
+  await page.goto(`${BASE}/account`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1800);
+  const pwCard = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Password', exact: true }) });
+  check('the account page offers a password form', await pwCard.isVisible());
+  const ownInputs = pwCard.locator('input[type="password"]');
+  check('it asks for the current password, a new one and a confirmation', (await ownInputs.count()) === 3, `inputs=${await ownInputs.count()}`);
+
+  const changeButton = pwCard.getByRole('button', { name: 'Change password' });
+  await ownInputs.nth(1).fill('a-ui-new-secret');
+  await ownInputs.nth(2).fill('a-ui-new-secret');
+  check('an empty current password is blocked before it is sent', await ownInputs.nth(0).evaluate((el) => !el.checkValidity()));
+
+  // The current password has to be filled in for the browser to send anything at
+  // all, otherwise native validation answers before the form's own check runs.
+  await ownInputs.nth(0).fill(PASSWORD);
+  await ownInputs.nth(2).fill('something-else');
+  await changeButton.click();
+  await page.waitForTimeout(700);
+  check('a confirmation that does not match is refused', /The two passwords do not match/.test(await pwCard.innerText()), (await pwCard.innerText()).slice(-160));
+  check('a mismatched confirmation changes nothing', !/Password changed/.test(await pwCard.innerText()));
+
+  await ownInputs.nth(2).fill('a-ui-new-secret');
+  await ownInputs.nth(0).fill('definitely-not-the-password');
+  await changeButton.click();
+  await page.waitForTimeout(1500);
+  check('a wrong current password is refused', /That is not your current password/.test(await pwCard.innerText()), (await pwCard.innerText()).slice(-160));
+  check('a refused change shows no success', !/Password changed/.test(await pwCard.innerText()));
+
+  await ownInputs.nth(0).fill(PASSWORD);
+  await changeButton.click();
+  await page.waitForTimeout(1800);
+  check('the password change is confirmed', /Password changed/.test(await pwCard.innerText()), (await pwCard.innerText()).slice(-160));
+  check('the form is cleared after a change', (await ownInputs.nth(0).inputValue()) === '' && (await ownInputs.nth(1).inputValue()) === '');
+
+  await page.goto(`${BASE}/account`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1800);
+  check('the session survives the password change', /Hello,/.test(await body()), (await body()).slice(0, 120));
 } finally {
   await browser.close();
   removeAdmin();

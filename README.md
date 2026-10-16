@@ -154,10 +154,11 @@ AGENTS.md                    project note for agents
 - **Listings**: search, filter by status and category, sort six ways, page 25 at a time.
   Edit any field a vendor can (plus pin rank and featured), flip featured from the row,
   and delete a listing outright.
-- **Accounts**: the same search/filter/paging over every account. Change a role or
-  suspension straight from the row, edit name and phone, set a new password (which signs
-  that account out everywhere) or delete it. An admin cannot demote, suspend or delete
-  their own account — the last admin cannot lock the panel.
+- **Accounts**: the same search/filter/paging over every account, and **New account** creates
+  one — any role, including another admin — so adding an operator no longer means SSH and SQL.
+  Change a role or suspension straight from the row, edit name and phone, set a new password
+  (which signs that account out everywhere) or delete it. An admin cannot demote, suspend or
+  delete their own account — the last admin cannot lock the panel.
 - **Categories**: rename a category, rewrite its tagline, hide it, and rename the
   specialty labels its homepage card shows. Slugs never change.
 - **Quote requests**: browse and search every request, and delete one.
@@ -217,6 +218,7 @@ Every route exists identically in `Database/api-handler.cjs` (Node) and
 | POST | `/api/auth/login` | — | email is case-insensitive |
 | POST | `/api/auth/logout` | session | revokes the session row |
 | PATCH | `/api/auth/me` | session | change name and phone |
+| POST | `/api/auth/password` | session | change your own password (`currentPassword` + `password`, 8–200); every other session ends, this one stays |
 | GET | `/api/favorites` | session | saved listing ids |
 | POST | `/api/favorites` | session | save one (idempotent) |
 | POST | `/api/favorites/merge` | session | merge guest ids after login |
@@ -234,6 +236,7 @@ Every route exists identically in `Database/api-handler.cjs` (Node) and
 | PATCH | `/api/admin/listings/:id` | admin | edit any field, including pin rank and featured |
 | DELETE | `/api/admin/listings/:id` | admin | remove a listing (its quote requests stay, unattached) |
 | GET | `/api/admin/users` | admin | search/filter/page every account (`q`, `role`, `status`) |
+| POST | `/api/admin/users` | admin | create an account (`email`, `name`, `role`, `password`, optional `phone`) and return the new row |
 | PATCH | `/api/admin/users/:id` | admin | role, suspension, name, phone |
 | POST | `/api/admin/users/:id/password` | admin | set a new password and end that account's sessions |
 | DELETE | `/api/admin/users/:id` | admin | delete an account and its sessions |
@@ -304,16 +307,21 @@ no usable picture keeps its category image.
 
 ## 8. Accounts, sessions, security
 
-- **Roles:** `parent`, `vendor`, `admin`. Signup can only ask for the first two; admin
-  exists only through `Database/create-admin.cjs` (development) or
-  `deploy/tools/set-password.php --create` (server).
+- **Roles:** `parent`, `vendor`, `admin`. Signup can only ask for the first two. An admin
+  creates the rest — `/admin` → Accounts → **New account**, any role included — while
+  `Database/create-admin.cjs` (development) and `deploy/tools/set-password.php --create`
+  (server) still work when there is no console to reach.
 - **Passwords:** `pbkdf2$sha256$210000$<salt-b64>$<key-b64>`, 16-byte salt, 32-byte key,
-  compared in constant time. Accounts created before the switch used scrypt: Node still
-  verifies those once and rewrites them as PBKDF2; PHP cannot verify scrypt, so such a
-  row needs one password reset (the exporter lists them when it finds any).
+  compared in constant time. Anyone signed in changes their own from `/account`: the session
+  says who they are and the current password says it is still them, and a wrong current
+  password is a field error (422), not a 401. Accounts created before the switch used
+  scrypt: Node still verifies those once and rewrites them as PBKDF2; PHP cannot verify
+  scrypt, so such a row needs one password reset (the exporter lists them when it finds any).
 - **Sessions:** an opaque random token in the `ps_session` cookie — `Path=/`, `HttpOnly`,
   `SameSite=Lax`, `Max-Age` 30 days, plus `Secure` whenever the request arrived over
-  TLS. Every request re-reads the session row, so logout really revokes it.
+  TLS. Every request re-reads the session row, so logout really revokes it. Changing your own
+  password ends every session *except* the one that asked, so the browser you used stays
+  signed in; an admin resetting someone else's password ends all of that account's sessions.
 - **Server-side validation** runs again on every write: name, email format, password
   length (8–200), price range, guest count, field-length cap, and `safeUrl()` rejects
   anything that is not `http(s)` — a `javascript:` website comes back as a field error.
@@ -398,8 +406,8 @@ Sessions are deliberately not exported, so everyone signs in again after a deplo
 
 ## 12. Verifying it
 
-Run everything from the project root. The counts are from the last full run
-(2026-09-21); `VERIFICATION.md` holds the run log and what each check proves.
+Run everything from the project root. `VERIFICATION.md` holds the run log and what each
+check proves; the counts here are from the 2026-10-17 run.
 
 ```
 npm run dev                                  # Node API + SPA on :8080
@@ -415,6 +423,20 @@ node .ohmyagent\check_export.cjs             # 25 export columns vs MySQL schema
 node .ohmyagent\check_prices.cjs             # how many listings have a price
 node .ohmyagent\check_summary.mjs            # directory-summary sanity
 node .ohmyagent\cleanup_test_data.cjs --apply  # remove probe/E2E rows
+```
+
+The checks that are actually in the repository — this is the list a fresh clone can run
+(the `.ohmyagent/` lines above are a record of a scratch toolchain, see the note below):
+
+```
+npx tsc --noEmit                              # types, no output = clean
+npm run build                                 # client + SSR + prerender
+node scripts\verify-admin-panel.cjs           # 69 admin API checks over HTTP (:8080 up)
+node scripts\verify-admin-ui.mjs              # 57 console checks in a real browser
+node scripts\verify-change-password.cjs       # 17 checks on POST /api/auth/password
+node scripts\verify-event-type-quote.cjs      # 14  event-type column, POST and both readers
+node scripts\verify-phone-validation.cjs      # 22  phone/guest checks across every writer
+node scripts\e2e-api-smoke.cjs                # signup -> session -> listings, end to end
 ```
 
 ### PHP API against real MySQL
@@ -438,6 +460,12 @@ call .ohmyagent\mysql_local.cmd < .ohmyagent\php_e2e_cleanup.sql   # drop probe 
 
 `check_php_vs_node.mjs` needs both APIs running and both holding the same data; it
 compares canonical JSON (key order is irrelevant, values are not).
+
+**The `.ohmyagent/` paths in this section are a record, not a command list.** `.ohmyagent/`
+contains only `settings.json` and is untracked — the scratch toolchain it names (probes, the
+local MySQL/PHP harness, the graph pipeline) was never committed, so those commands work on
+the machine that ran them and nowhere else. The checks under `scripts/` are in the
+repository and runnable, and that is where new ones belong.
 
 ---
 

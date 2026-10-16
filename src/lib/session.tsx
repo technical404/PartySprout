@@ -13,6 +13,9 @@ export type AuthResult =
   | { ok: true; user: SessionUser }
   | { ok: false; message: string; fields?: Record<string, string> | undefined };
 
+/** Changing a password answers with ok alone, not a user row. */
+export type PasswordResult = { ok: true } | { ok: false; message: string; fields?: Record<string, string> | undefined };
+
 type SessionValue = {
   user: SessionUser | null;
   /** True until the first /api/auth/me answer arrives. */
@@ -21,6 +24,7 @@ type SessionValue = {
   signup: (input: { email: string; name: string; password: string; phone?: string; role?: "parent" | "vendor" }) => Promise<AuthResult>;
   logout: () => Promise<void>;
   updateProfile: (input: { name: string; phone?: string }) => Promise<AuthResult>;
+  changePassword: (input: { currentPassword: string; password: string }) => Promise<PasswordResult>;
   refresh: () => Promise<void>;
 };
 
@@ -36,6 +40,14 @@ async function readAuth(res: Response): Promise<AuthResult> {
     return { ok: false, message: data.error || `That did not work (error ${res.status}).`, fields: data.fields };
   }
   return { ok: true, user: data.user };
+}
+
+async function readOk(res: Response): Promise<PasswordResult> {
+  const data = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
+  if (!res.ok) {
+    return { ok: false, message: data.error || `That did not work (error ${res.status}).`, fields: data.fields };
+  }
+  return { ok: true };
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -96,9 +108,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
+  const changePassword = useCallback<SessionValue["changePassword"]>(async (input) => {
+    const res = await fetch("/api/auth/password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return readOk(res);
+  }, []);
+
   const value = useMemo<SessionValue>(
-    () => ({ user, loading, login, signup, logout, updateProfile, refresh }),
-    [user, loading, login, signup, logout, updateProfile, refresh],
+    () => ({ user, loading, login, signup, logout, updateProfile, changePassword, refresh }),
+    [user, loading, login, signup, logout, updateProfile, changePassword, refresh],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

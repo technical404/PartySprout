@@ -4,21 +4,24 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-16, **deployed to https://hirepartycharacters.com** — the hero date box
-  opens its calendar from a click anywhere in the field, the Where box suggests states, and
-  the three pinned businesses show their own logo and a picture from their own home page.
-  Verified against the live site (8/8) as well as the dev server (16 search + 6 pinned
-  checks) — iteration 15)
-  (previous: 2026-10-14 — both forms require every answer, iteration 14; 2026-10-07 — the
-  header logo is one image with no text beside it, iteration 14;
-  Party builder removed and the nav given Request a quote — iteration 12;
-  the site renamed to Hire Party Characters — iteration 11; the logo mark in
+- Last run: 2026-10-17, **deployed to https://hirepartycharacters.com** — anyone signed in
+  can change their own password from `/account`, and `/admin` can create accounts instead of
+  needing SSH and SQL. 69 admin API + 57 admin browser + 17 change-password checks locally,
+  13 more against the live site, iteration 17)
+  (previous: 2026-10-16 — the six-tab admin console, iteration 16, which is deployed; the hero
+  date box opens its calendar from a click anywhere in the field, the Where box suggests
+  states, and the three pinned businesses show their own logo and a picture from their own
+  home page — verified live 8/8 and on the dev server, iteration 15; 2026-10-14 — both forms
+  require every answer, iteration 14; 2026-10-07 — the header logo is one image with no text
+  beside it, iteration 14; Party builder removed and the nav given Request a quote —
+  iteration 12; the site renamed to Hire Party Characters — iteration 11; the logo mark in
   the header, footer and favicon — iteration 10; nav and results bar — iteration 9;
   production host + local SQLite, quote wizard event type — iteration 8; full local run:
   2026-09-21, dev server on `http://localhost:8080`)
-- Admin console: 2026-10-16, **built and checked locally, NOT deployed** — production still
-  serves the review-queue-only `/admin`, and the PHP has not been linted on the server yet.
-  61 API checks + 35 browser checks, iteration 16
+- Admin console: 2026-10-16, **deployed** — six tabs over real rows (61 API checks + 35
+  browser checks at the time, iteration 16). The line here called it "built and checked
+  locally, NOT deployed" for a day after it went out; a live check in iteration 17 found the
+  six-tab console being served from the PHP host, so it is live.
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -50,8 +53,9 @@ node .ps_state_totals.mjs                         # a state's suggestion count v
 python .ps_verify_live15.py                       # live: all four changes on hirepartycharacters.com
 python .ps_pinned_prod_apply.py                   # live: write the pinned logos/pictures into MySQL, then re-read
 python .ps_pinned_prod.py                         # live: read those three rows, change nothing
-node scripts\verify-admin-panel.cjs               # 61 admin API checks over HTTP (needs :8080 up)
-node scripts\verify-admin-ui.mjs                  # 35 browser checks on the console (creates and removes its own admin)
+node scripts\verify-change-password.cjs           # 17 checks on POST /api/auth/password (needs :8080 up)
+node scripts\verify-admin-panel.cjs               # 69 admin API checks over HTTP (needs :8080 up)
+node scripts\verify-admin-ui.mjs                  # 57 browser checks on the console (creates and removes its own admin)
 
 # PHP API against real MySQL (throwaway MariaDB + portable PHP, see below)
 .ohmyagent\mysql_start.cmd           # MariaDB on 127.0.0.1:3306 (data in %TEMP%\psmysql)
@@ -70,9 +74,90 @@ call .ohmyagent\mysql_local.cmd < .ohmyagent\php_e2e_cleanup.sql   # drop probe 
 `check_php_vs_node.mjs` needs both APIs up (Node on :8080, PHP on :8099) and both
 storing the same data, so it compares the engines rather than the databases.
 
+**The `.ohmyagent/` commands above cannot be run from this repository.** `.ohmyagent/` holds
+only `settings.json` and is untracked — those scripts, and the MySQL/PHP harness and graph
+pipeline they belong to, live on the machine that ran them and were never committed. The
+lines stay here as the record of what was run. Everything under `scripts/` *is* in the
+repository and runnable, so new checks belong there.
+
+Restart the dev server after an API change. The Vite plugin loads
+`Database/api-handler.cjs` once at startup, so a server that is already running keeps
+answering from the old handler — which is why iteration 17's new routes looked absent on the
+very first browser run (the dialog simply stayed open) until the server was restarted.
+
 ---
 
 ## Run log
+
+### 2026-10-17 — iteration 17: you can change your own password, and the console can make accounts
+
+Two things were missing rather than broken. The console's per-row **Password** button already
+worked, but nothing let a signed-in person change their *own* password anywhere, and adding
+an account — an admin included — meant SSH and SQL. Both are now routes with the same shape
+in `Database/api-handler.cjs` and `deploy/public/api/index.php`, a form on `/account`, and a
+dialog on `/admin`:
+
+| Route | What it does |
+| --- | --- |
+| `POST /api/auth/password` | `currentPassword` + `password` (8+, max 200). The session says who you are, the current password says it is still you. Rate-limited to 10 tries per 15 minutes. |
+| `POST /api/admin/users` | `email`, `name`, `role`, `password`, optional `phone` → 201 with the new row. Same validation as signup, plus the role, and it refuses an email that is already taken. |
+
+**Changing your password does not sign you out.** `destroyOtherSessionsForUser(userId, token)`
+deletes every session for the account *except the one that asked*, so the browser you changed
+it in stays where it is while a cookie copied off another device stops working immediately.
+The console's per-row reset keeps its old behaviour: that one ends every session.
+
+Four details that only show up if you look:
+
+- **A wrong current password is a field error, not a 401.** Both 422s (`Please enter your
+  current password.`, `That is not your current password.`) point at the input, so the form
+  can highlight it instead of throwing you back to the login page.
+- **The Password dialog no longer has a dead button.** It disabled *Set password* until the
+  field was long enough, which told you nothing; it now stays clickable, counts down ("3 more
+  characters needed"), and answers a short password with the rule.
+- **A refused change changes nothing.** Throttle, blank current password, short password,
+  wrong current password and a mismatched confirmation all leave the stored hash alone —
+  asserted by re-reading the row, and then by signing in with the old password.
+- **The created account is really usable, and never leaks.** The check signs in with the
+  password it was handed; the response carries the same `SELECT` list as the console's own
+  rows, so `password_hash` cannot appear in it. The stored hash is asserted to use the
+  current `pbkdf2$sha256$…` scheme and the password itself is asserted absent from the row.
+
+```
+node scripts/verify-change-password.cjs   ->  17/17  (new: 17 checks over real HTTP)
+node scripts/verify-admin-panel.cjs       ->  69/69  (was 61, +8 for creating an account,
+                                                    refusal paths and session cleanup)
+node scripts/verify-admin-ui.mjs          ->  57/57  (was 35, +22 in a real browser: the new
+                                                    dialog opens, creates and closes; the
+                                                    account form refuses a mismatch, a wrong
+                                                    current password and a short password,
+                                                    then changes it and survives the change)
+node scripts/e2e-api-smoke.cjs            ->  {"ok":true,"signup":201,"listings":200,"total":46}
+node scripts/verify-event-type-quote.cjs  ->  14/14
+node scripts/verify-phone-validation.cjs  ->  22/22
+npx tsc --noEmit                          ->  clean
+npm run build                             ->  built (client + SSR + prerender)
+npx eslint <changed files>                ->  no new problems (the prettier noise and one
+                                              react-refresh warning predate this change)
+```
+
+Live, read-only, as the real admin: sign in → `/account` shows the three-field form and the
+button → `/admin` → Accounts offers **New account** → the dialog opens and closes without
+creating anything → the rows still offer **Password** → log out → `/api/auth/me` is `null`
+again — **13/13, nothing written**. Two probes of the deployed PHP answer as routes rather
+than 404s: `POST /api/auth/password` and `POST /api/admin/users` both return
+`401 {"error":"Please log in first."}` while signed out.
+
+Deploy: assets, shell and 46 alias files refreshed; `api/index.php` uploaded as `.new`,
+linted on the server (`No syntax errors detected`) and only then moved into place, with the
+live md5 matching the local file byte for byte.
+
+**What this iteration did not prove.** The PHP half is proven by the server's `php -l`, by
+the route answering 401 live, and by mirroring the Node code line for line — not by running
+the PHP against MySQL, which the `.ohmyagent/` harness used to do (see *How to run the
+checks*: it is not in this repository). So `POST /api/auth/password` and
+`POST /api/admin/users` have never executed against MariaDB. The checks' expected strings
+were kept identical in both runtimes on purpose, so a divergence would be visible in a diff.
 
 ### 2026-10-16 — iteration 16: the admin console runs the directory, not just the queue
 
@@ -1033,6 +1118,11 @@ for every public read (`check_php_vs_node.mjs` 10/10). What is still unproven is
   50 images and the three uncached documents (README, VERIFICATION, the converted
   spreadsheet) are not in it, and `cost.json` shows 0 tokens because AST extraction is
   local. Treat it as a map of the code, not a proof of runtime behaviour.
+- **Iteration 17's two PHP routes have never run against MySQL.** They are mirrored into
+  `deploy/public/api/index.php` line for line, parse on the server and answer 401 when
+  signed out, but the local PHP+MariaDB harness that would run the whole flow
+  (`php_e2e.mjs`, `check_php_vs_node.mjs`) is not in this repository, so the create and
+  change-password paths are only proven in the Node backend and in the browser against it.
 
 ## Data health snapshot (2026-09-21)
 

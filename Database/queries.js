@@ -1023,6 +1023,16 @@ function destroySessionsForUser(userId) {
   return db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes;
 }
 
+/**
+ * A self-service change keeps the caller signed in on the browser they used and
+ * ends every other session, so a cookie copied off another device stops working
+ * the moment the owner changes their own password.
+ */
+function destroyOtherSessionsForUser(userId, keepToken) {
+  if (!keepToken) return destroySessionsForUser(userId);
+  return db.prepare("DELETE FROM sessions WHERE user_id = ? AND token <> ?").run(userId, keepToken).changes;
+}
+
 function adminListCategories() {
   const categories = db
     .prepare(
@@ -1193,6 +1203,7 @@ module.exports = {
   adminUpdateUser,
   adminDeleteUser,
   destroySessionsForUser,
+  destroyOtherSessionsForUser,
   adminListCategories,
   adminUpdateCategory,
   adminUpdateSubcategory,

@@ -403,6 +403,47 @@ async function handleAuth(req, res, pathname, url) {
     return send(res, 200, { user: publicUser(updated) });
   }
 
+  if (req.method === 'POST' && pathname === '/api/auth/password') {
+    if (!throttle(req, 'password', 10, 15 * 60 * 1000)) {
+      return send(res, 429, { error: 'Too many attempts. Please try again in a few minutes.' });
+    }
+    const user = currentUser(req);
+    if (!user) return send(res, 401, { error: 'Please log in first.' });
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const current = String(body.currentPassword ?? '');
+    const password = String(body.password ?? '');
+    const errors = {};
+    if (!current) errors.currentPassword = 'Please enter your current password.';
+    if (password.length < 8) errors.password = 'Use at least 8 characters.';
+    else if (password.length > 200) errors.password = 'Password is too long.';
+    if (Object.keys(errors).length > 0) {
+      return send(res, 422, { error: 'Validation failed', fields: errors });
+    }
+
+    // The session proves who they are; the current password proves it is still
+    // them. A miss is a field error rather than a 401, so the form can point at
+    // the input that was wrong instead of throwing them back to a login page.
+    const stored = queries.getUserByEmail(user.email);
+    if (!stored || !auth.verifyPassword(current, stored.password_hash)) {
+      return send(res, 422, {
+        error: 'Validation failed',
+        fields: { currentPassword: 'That is not your current password.' },
+      });
+    }
+
+    queries.setUserPassword(user.id, auth.hashPassword(password));
+    // This browser stays signed in; every other session ends.
+    queries.destroyOtherSessionsForUser(user.id, auth.parseCookies(req)[auth.SESSION_COOKIE]);
+    return send(res, 200, { ok: true });
+  }
+
   return false;
 }
 
@@ -727,6 +768,46 @@ async function handleAdmin(req, res, pathname, url) {
         { page, pageSize },
       ),
     );
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/users") {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const email = auth.normalizeEmail(body.email);
+    const name = text(body.name);
+    const password = String(body.password ?? "");
+    // Admins can hand out any role, unlike signup, which only ever creates parents.
+    const role = text(body.role) || "parent";
+
+    const errors = {};
+    if (!email) errors.email = "Please enter their email.";
+    else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
+    else if (email.length > MAX_FIELD) errors.email = "Email is too long.";
+    else if (queries.getUserByEmail(email)) errors.email = "An account with this email already exists.";
+    if (name.length < 2) errors.name = "Please enter a name.";
+    else if (name.length > 200) errors.name = "Name is too long.";
+    if (!queries.USER_ROLES.includes(role)) errors.role = "Role must be parent, vendor or admin.";
+    if (password.length < 8) errors.password = "Use at least 8 characters.";
+    else if (password.length > 200) errors.password = "Password is too long.";
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
+    if (Object.keys(errors).length > 0) {
+      return send(res, 422, { error: "Validation failed", fields: errors });
+    }
+
+    const created = queries.createUser({
+      email,
+      name,
+      phone: normalisePhone(body.phone),
+      passwordHash: auth.hashPassword(password),
+      role,
+    });
+    return send(res, 201, { user: created });
   }
 
   const userPassword = pathname.match(/^\/api\/admin\/users\/(\d+)\/password$/);

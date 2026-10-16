@@ -69,6 +69,8 @@ const created = { userIds: [], listingIds: [], quoteIds: [] };
 function cleanup() {
   for (const id of created.quoteIds) db.prepare('DELETE FROM quote_requests WHERE id = ?').run(id);
   for (const id of created.listingIds) db.prepare('DELETE FROM listings WHERE id = ?').run(id);
+  // Sessions first: deleting a user row on its own would leave them behind.
+  for (const id of created.userIds) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
   for (const id of created.userIds) db.prepare('DELETE FROM users WHERE id = ?').run(id);
   created.quoteIds = [];
   created.listingIds = [];
@@ -276,6 +278,38 @@ function cleanup() {
     renamed.status === 200 && renamed.body.user.name === 'Renamed Parent' && renamed.body.user.role === 'vendor' && renamed.body.user.phone === '5551112222',
     renamed.body,
   );
+
+  /* --- creating an account --------------------------------------------- */
+
+  const madeEmail = `made-${stamp}@example.test`;
+  const made = await asAdmin('/api/admin/users', json({ email: madeEmail, name: 'Made By Admin', phone: '', role: 'admin', password: 'a-made-up-secret' }));
+  check(
+    'an admin can create an account',
+    made.status === 201 && made.body.user.email === madeEmail && made.body.user.role === 'admin',
+    made.body,
+  );
+  created.userIds.push(made.body.user.id);
+  check('a created account never leaks a password hash', made.body.user.password_hash === undefined, Object.keys(made.body.user));
+  check('a created account comes back active', made.body.user.status === 'active', made.body.user);
+
+  const madeLogin = await request(port, '/api/auth/login', json({ email: madeEmail, password: 'a-made-up-secret' }));
+  check('the created account signs in with the password it was given', madeLogin.status === 200 && madeLogin.body.user.role === 'admin', madeLogin.body);
+
+  const duplicateEmail = await asAdmin('/api/admin/users', json({ email: madeEmail, name: 'Copy Cat', phone: '', role: 'parent', password: 'another-secret-1' }));
+  check('a duplicate email is refused', duplicateEmail.status === 422 && duplicateEmail.body.fields.email, duplicateEmail.body);
+
+  const badCreate = await asAdmin('/api/admin/users', json({ email: 'not-an-email', name: 'x', phone: 'hello', role: 'wizard', password: 'short' }));
+  check('a bad new account is refused', badCreate.status === 422, badCreate.body);
+  check(
+    'every bad new-account field is reported',
+    ['email', 'name', 'phone', 'role', 'password'].every((key) => badCreate.body.fields[key]),
+    badCreate.body.fields,
+  );
+
+  const parentAttempt = json({ email: `nope-${stamp}@example.test`, name: 'Not Allowed', phone: '', role: 'parent', password: 'a-made-up-secret' });
+  parentAttempt.headers = { ...parentAttempt.headers, cookie: parentCookie };
+  const parentCreate = await request(port, '/api/admin/users', parentAttempt);
+  check('a non-admin cannot create an account', parentCreate.status === 403, parentCreate.body);
 
   const shortPassword = await asAdmin(`/api/admin/users/${parent.id}/password`, json({ password: 'short' }));
   check('a short password is refused', shortPassword.status === 422 && shortPassword.body.fields.password, shortPassword.body);

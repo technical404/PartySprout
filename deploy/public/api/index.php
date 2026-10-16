@@ -912,6 +912,53 @@ function handle_auth(mysqli $db, string $method, string $path): bool
         send(200, ['user' => public_user($updated)]);
     }
 
+    if ($method === 'POST' && $path === '/api/auth/password') {
+        if (!throttle('password', 10, 15 * 60)) {
+            send(429, ['error' => 'Too many attempts. Please try again in a few minutes.']);
+        }
+        $user = current_user($db);
+        if ($user === null) {
+            send(401, ['error' => 'Please log in first.']);
+        }
+        $body = read_json_body();
+        $current = (string) ($body['currentPassword'] ?? '');
+        $password = (string) ($body['password'] ?? '');
+
+        $errors = [];
+        if ($current === '') {
+            $errors['currentPassword'] = 'Please enter your current password.';
+        }
+        if (strlen($password) < 8) {
+            $errors['password'] = 'Use at least 8 characters.';
+        } elseif (strlen($password) > 200) {
+            $errors['password'] = 'Password is too long.';
+        }
+        if ($errors !== []) {
+            send(422, ['error' => 'Validation failed', 'fields' => $errors]);
+        }
+
+        // The session proves who they are; the current password proves it is still
+        // them. A miss is a field error rather than a 401, so the form can point at
+        // the input that was wrong instead of throwing them back to a login page.
+        $stored = fetch_one($db, 'SELECT password_hash FROM users WHERE id = ?', [(int) $user['id']]);
+        if ($stored === null || verify_password($current, (string) $stored['password_hash']) !== 'yes') {
+            send(422, [
+                'error' => 'Validation failed',
+                'fields' => ['currentPassword' => 'That is not your current password.'],
+            ]);
+        }
+
+        run_write($db, 'UPDATE users SET password_hash = ? WHERE id = ?', [hash_password($password), (int) $user['id']]);
+        // This browser stays signed in; every other session ends.
+        $token = (string) ($_COOKIE[SESSION_COOKIE] ?? '');
+        if ($token === '') {
+            run_write($db, 'DELETE FROM sessions WHERE user_id = ?', [(int) $user['id']]);
+        } else {
+            run_write($db, 'DELETE FROM sessions WHERE user_id = ? AND token <> ?', [(int) $user['id'], $token]);
+        }
+        send(200, ['ok' => true]);
+    }
+
     return false;
 }
 
@@ -1647,6 +1694,56 @@ function handle_admin(mysqli $db, string $method, string $path): bool
             'role' => $_GET['role'] ?? '',
             'status' => $_GET['status'] ?? '',
         ], ['page' => $_GET['page'] ?? null, 'pageSize' => $_GET['pageSize'] ?? null]));
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/users') {
+        $body = read_json_body();
+        $email = normalize_email($body['email'] ?? '');
+        $name = text($body['name'] ?? '');
+        $password = (string) ($body['password'] ?? '');
+        // Admins hand out any role here; signup only ever creates parents.
+        $role = text($body['role'] ?? '');
+        if ($role === '') {
+            $role = 'parent';
+        }
+
+        $errors = [];
+        if ($email === '') {
+            $errors['email'] = 'Please enter their email.';
+        } elseif (!preg_match(EMAIL_PATTERN, $email)) {
+            $errors['email'] = 'Enter a valid email address.';
+        } elseif (strlen($email) > MAX_FIELD) {
+            $errors['email'] = 'Email is too long.';
+        } elseif (fetch_one($db, 'SELECT id FROM users WHERE email = ?', [$email]) !== null) {
+            $errors['email'] = 'An account with this email already exists.';
+        }
+        if (strlen($name) < 2) {
+            $errors['name'] = 'Please enter a name.';
+        } elseif (strlen($name) > 200) {
+            $errors['name'] = 'Name is too long.';
+        }
+        if (!in_array($role, USER_ROLES, true)) {
+            $errors['role'] = 'Role must be parent, vendor or admin.';
+        }
+        if (strlen($password) < 8) {
+            $errors['password'] = 'Use at least 8 characters.';
+        } elseif (strlen($password) > 200) {
+            $errors['password'] = 'Password is too long.';
+        }
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
+        if ($errors !== []) {
+            send(422, ['error' => 'Validation failed', 'fields' => $errors]);
+        }
+
+        run_write(
+            $db,
+            'INSERT INTO users (email, name, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+            [$email, $name, phone_or_null($body['phone'] ?? ''), hash_password($password), $role]
+        );
+        send(201, ['user' => admin_user_by_id($db, (int) $db->insert_id)]);
     }
 
     if ($method === 'POST' && preg_match('#^/api/admin/users/(\d+)/password$#', $path, $m) === 1) {

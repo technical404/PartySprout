@@ -304,6 +304,8 @@ export function AccountPage() {
             </form>
           </section>
 
+          <PasswordCard />
+
           <section className="rounded-2xl border bg-background p-6">
             <h2 className="font-display text-xl font-extrabold">Shortlist</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -319,6 +321,80 @@ export function AccountPage() {
     </div>
     <Footer />
   </main>;
+}
+
+/**
+ * Changing your own password, for every role. The current password is required,
+ * and the server keeps this browser signed in while ending the other sessions.
+ */
+function PasswordCard() {
+  const { changePassword } = useSession();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setFields({});
+
+    // The server checks both of these too; doing it here only saves a round trip.
+    if (password.length < 8) {
+      setFields({ password: "Use at least 8 characters." });
+      setError("Please fix the highlighted fields.");
+      return;
+    }
+    if (password !== confirm) {
+      setFields({ confirm: "The two passwords do not match." });
+      setError("Please fix the highlighted fields.");
+      return;
+    }
+
+    setStatus("saving");
+    const result = await changePassword({ currentPassword, password });
+    if (!result.ok) {
+      setStatus("idle");
+      setError(result.message);
+      setFields(result.fields ?? {});
+      return;
+    }
+    setStatus("saved");
+    setCurrentPassword("");
+    setPassword("");
+    setConfirm("");
+  }
+
+  return <section className="rounded-2xl border bg-background p-6">
+    <h2 className="font-display text-xl font-extrabold">Password</h2>
+    <p className="mt-1 text-sm text-muted-foreground">
+      Changing it signs out your other devices. This one stays signed in.
+    </p>
+    {error && <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+    <form onSubmit={submit} className="mt-4 grid gap-4">
+      <label className="grid gap-2 text-sm font-semibold">
+        Current password
+        <Input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required className={CONTROL_CLASS} />
+        {fields["currentPassword"] && <span className="text-xs font-medium text-destructive">{fields["currentPassword"]}</span>}
+      </label>
+      <label className="grid gap-2 text-sm font-semibold">
+        New password
+        <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required minLength={8} placeholder="At least 8 characters" className={CONTROL_CLASS} />
+        {fields["password"] && <span className="text-xs font-medium text-destructive">{fields["password"]}</span>}
+      </label>
+      <label className="grid gap-2 text-sm font-semibold">
+        Confirm new password
+        <Input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" required className={CONTROL_CLASS} />
+        {fields["confirm"] && <span className="text-xs font-medium text-destructive">{fields["confirm"]}</span>}
+      </label>
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={status === "saving"}>{status === "saving" ? "Changing…" : "Change password"}</Button>
+        {status === "saved" && <span className="inline-flex items-center gap-1 text-sm font-semibold text-success"><Check className="size-4" />Password changed</span>}
+      </div>
+    </form>
+  </section>;
 }
 
 /* ------------------------------------------------------------------------- */
