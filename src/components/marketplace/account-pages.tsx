@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle, Check, Heart, Loader2, LogOut, Scale, Send,
@@ -14,7 +14,7 @@ import {
   type Category, type QuoteRequestRow, type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
-import { useSession } from "@/lib/session";
+import { useSession, workspacePath, type SessionUser } from "@/lib/session";
 import { SUPPORT_EMAIL } from "@/lib/site";
 import { normalisePhone, phoneError, sanitisePhoneInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 export function LoginPanel({ intent = "parent", note, onDone }: {
   intent?: "parent" | "vendor";
   note?: string;
-  onDone?: () => void;
+  onDone?: (user: SessionUser) => void;
 }) {
   const { login, signup } = useSession();
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -72,7 +72,7 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
       return;
     }
     setBusy(false);
-    onDone?.();
+    onDone?.(result.user);
   }
 
   return <div className="rounded-2xl border bg-background p-6 shadow-sm sm:p-8">
@@ -137,6 +137,7 @@ export function LoginPanel({ intent = "parent", note, onDone }: {
 }
 
 export function LoginPage() {
+  const navigate = useNavigate();
   return <main className="min-h-screen bg-surface">
     <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2">
       <div>
@@ -161,7 +162,10 @@ export function LoginPage() {
           <Button variant="ghost" asChild><Link to="/list-your-business">I run a business</Link></Button>
         </div>
       </div>
-      <LoginPanel note="Use the same form to log in or create an account." />
+      <LoginPanel
+        note="Use the same form to log in or create an account."
+        onDone={(account) => void navigate({ to: workspacePath(account) })}
+      />
     </div>
     <Footer />
   </main>;

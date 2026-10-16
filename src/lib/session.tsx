@@ -9,6 +9,15 @@ export type SessionUser = {
   listingId: number | null;
 };
 
+/**
+ * The first page of a signed-in account: what the header shows behind the user's
+ * name, and what the login form opens once it succeeds. Shared so the two cannot
+ * drift apart — signing in on /login used to leave the visitor sitting on the form.
+ */
+export function workspacePath(user: Pick<SessionUser, "role"> | null | undefined): "/account" | "/admin" | "/vendor/dashboard" {
+  return user?.role === "admin" ? "/admin" : user?.role === "vendor" ? "/vendor/dashboard" : "/account";
+}
+
 export type AuthResult =
   | { ok: true; user: SessionUser }
   | { ok: false; message: string; fields?: Record<string, string> | undefined };

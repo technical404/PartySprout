@@ -60,7 +60,7 @@ import {
   type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
-import { useSession } from "@/lib/session";
+import { useSession, workspacePath } from "@/lib/session";
 import { Brand, Footer } from "./footer";
 import { QuoteDialog } from "./quote-form";
 
@@ -71,8 +71,7 @@ export { QuoteDialog } from "./quote-form";
 
 export function SiteHeader() {
   const { user, logout } = useSession();
-  const workspace: "/account" | "/admin" | "/vendor/dashboard" =
-    user?.role === "admin" ? "/admin" : user?.role === "vendor" ? "/vendor/dashboard" : "/account";
+  const workspace = workspacePath(user);
   const firstName = user?.name?.split(" ")[0] ?? "";
   const closeAndLogout = () => void logout();
 
