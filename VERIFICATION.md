@@ -54,6 +54,7 @@ python .ps_verify_live15.py                       # live: all four changes on hi
 python .ps_pinned_prod_apply.py                   # live: write the pinned logos/pictures into MySQL, then re-read
 python .ps_pinned_prod.py                         # live: read those three rows, change nothing
 node scripts\verify-change-password.cjs           # 17 checks on POST /api/auth/password (needs :8080 up)
+node scripts\verify-login-throttle.cjs             # 7 checks on the sign-in lockout (~35s, nearly all waiting)
 node scripts\verify-admin-panel.cjs               # 69 admin API checks over HTTP (needs :8080 up)
 node scripts\verify-admin-ui.mjs                  # 57 browser checks on the console (creates and removes its own admin)
 
@@ -950,10 +951,11 @@ What changed:
 | `Database/export-mysql.cjs` | did not export accounts or favourites | exports `users` and `favorites`, warns about any hash PHP cannot verify; sessions are deliberately not exported |
 | Password help on the host | none | `deploy/tools/set-password.php` (reset or `--create` an account, CLI only, revokes that account's sessions) |
 
-Rate limiting: the Node API throttles signup/login (10 per 15 min per IP) and quote
-requests (30 per 15 min) in memory. PHP keeps nothing between requests, so
-`index.php` throttles the same routes through a small locked file per IP in the
-temporary directory.
+Rate limiting: the Node API throttles signup and password changes (10 per 15 min
+per IP), sign-in (10 per 30 s, so a mistyped password costs half a minute rather
+than fifteen) and quote requests (30 per 15 min) in memory. PHP keeps nothing
+between requests, so `index.php` throttles the same routes through a small locked
+file per IP in the temporary directory.
 
 **What that proves:** `php -l` is clean on both PHP files, the API helpers pass
 29 unit checks (`.ohmyagent/php_selftest.php`, run through `php_interop.mjs`), the

@@ -843,8 +843,10 @@ function handle_auth(mysqli $db, string $method, string $path): bool
     }
 
     if ($method === 'POST' && $path === '/api/auth/login') {
-        if (!throttle('login', 10, 15 * 60)) {
-            send(429, ['error' => 'Too many attempts. Please try again in a few minutes.']);
+        // A mistyped password costs half a minute, not a quarter of an hour. The
+        // attempt budget is unchanged; only the window it is counted over is short.
+        if (!throttle('login', 10, 30)) {
+            send(429, ['error' => 'Too many attempts. Please try again in 30 seconds.']);
         }
         $body = read_json_body();
         $email = normalize_email($body['email'] ?? '');

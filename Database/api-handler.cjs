@@ -342,8 +342,10 @@ async function handleAuth(req, res, pathname, url) {
   }
 
   if (req.method === 'POST' && pathname === '/api/auth/login') {
-    if (!throttle(req, 'login', 10, 15 * 60 * 1000)) {
-      return send(res, 429, { error: 'Too many attempts. Please try again in a few minutes.' });
+    // A mistyped password costs half a minute, not a quarter of an hour. The attempt
+    // budget is unchanged; only the window it is counted over is short.
+    if (!throttle(req, 'login', 10, 30 * 1000)) {
+      return send(res, 429, { error: 'Too many attempts. Please try again in 30 seconds.' });
     }
     let body;
     try {
