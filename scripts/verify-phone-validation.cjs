@@ -6,6 +6,11 @@
  *   POST  /api/auth/signup      (the account form)
  *   PATCH /api/auth/me          (the profile form)
  *   POST  /api/listings         (the business listing form)
+ *   PATCH /api/vendor/listings/:id
+ *
+ * The quote wizard and the business listing form now require a number; the
+ * account forms still treat one as optional, and both behaviours are asserted
+ * here so neither drifts.
  *
  * Every row it creates is deleted again, so the database keeps its shape.
  *
@@ -62,7 +67,11 @@ function send(port, path, method, body, cookie) {
 const quote = (extra) => ({
   name: "Alex Tester",
   email: "alex.tester@example.test",
+  phone: "+1 555 010 2030",
   city: "Dallas",
+  eventDate: "2026-11-14",
+  guestCount: "12",
+  childAge: "Mostly age 6",
   eventType: "Birthday",
   categorySlug: "superheroes",
   budget: "Under $200",
@@ -158,9 +167,9 @@ const quote = (extra) => ({
 
     const blank = await send(port, "/api/quote-requests", "POST", quote({ phone: "" }));
     check(
-      "still accepts a blank phone (it is optional)",
-      blank.status === 201,
-      `status ${blank.status}`,
+      "refuses a blank phone (the wizard asks for one)",
+      blank.status === 422 && blank.body.fields?.phone === "Please enter your phone number.",
+      `status ${blank.status}, ${JSON.stringify(blank.body.fields ?? {})}`,
     );
 
     /* --------------------------- account form -------------------------- */
@@ -307,9 +316,10 @@ const quote = (extra) => ({
       cookie,
     );
     check(
-      "the business form still accepts a blank phone",
-      listingBlank.status === 201,
-      `status ${listingBlank.status}`,
+      "the business form refuses a blank phone",
+      listingBlank.status === 422 &&
+        listingBlank.body.fields?.phone === "Please enter a phone number.",
+      `status ${listingBlank.status}, ${JSON.stringify(listingBlank.body.fields ?? {})}`,
     );
 
     /* ----------------------- editing that listing ---------------------- */
@@ -361,9 +371,10 @@ const quote = (extra) => ({
         cookie,
       );
       check(
-        "editing a listing still accepts a blank phone",
-        editBlank.status === 200,
-        `status ${editBlank.status}`,
+        "editing a listing refuses a blank phone",
+        editBlank.status === 422 &&
+          editBlank.body.fields?.phone === "Please enter a phone number.",
+        `status ${editBlank.status}, ${JSON.stringify(editBlank.body.fields ?? {})}`,
       );
     }
   } finally {

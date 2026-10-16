@@ -171,57 +171,93 @@ function validateQuoteRequest(body) {
   const name = text(body.name);
   const email = text(body.email);
 
-  if (name.length < 2) errors.name = 'Please enter your name.';
-  if (name.length > MAX_FIELD) errors.name = 'Name is too long.';
-  if (!email) errors.email = 'Please enter your email.';
-  else if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
-  else if (email.length > MAX_FIELD) errors.email = 'Email is too long.';
+  if (name.length < 2) errors.name = "Please enter your name.";
+  if (name.length > MAX_FIELD) errors.name = "Name is too long.";
+  if (!email) errors.email = "Please enter your email.";
+  else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
+  else if (email.length > MAX_FIELD) errors.email = "Email is too long.";
 
-  for (const field of ['city', 'eventDate', 'guestCount', 'childAge', 'eventType', 'categorySlug', 'budget']) {
-    if (text(body[field]).length > MAX_FIELD) errors[field] = 'Value is too long.';
+  for (const field of [
+    "city",
+    "eventDate",
+    "guestCount",
+    "childAge",
+    "eventType",
+    "categorySlug",
+    "budget",
+  ]) {
+    if (text(body[field]).length > MAX_FIELD) errors[field] = "Value is too long.";
   }
-  const phoneProblem = phoneError(body.phone);
-  if (phoneProblem) errors.phone = phoneProblem;
+  // Every question in the wizard is answered before a request is accepted. A
+  // request an entertainer cannot act on costs everyone a round trip, so the
+  // missing answer is caught here as well as in the browser.
+  for (const [field, message] of Object.entries({
+    city: "Which city is the party in?",
+    eventDate: "Please pick the date of the party.",
+    guestCount: "How many children are you expecting?",
+    childAge: "How old are the children?",
+    eventType: "Pick the type of event you are planning.",
+    categorySlug: "Pick the entertainment you are after.",
+    budget: "Please pick an approximate budget.",
+  })) {
+    if (!text(body[field])) errors[field] = message;
+  }
+  const phone = text(body.phone);
+  if (!phone) errors.phone = "Please enter your phone number.";
+  else {
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
+  }
   // A children count is free text, but a number is the only useful answer here.
   const guests = text(body.guestCount);
-  if (guests && !/^\d{1,4}$/.test(guests)) errors.guestCount = 'Use a whole number of children.';
+  if (guests && !/^\d{1,4}$/.test(guests)) errors.guestCount = "Use a whole number of children.";
   // event_type is narrower than the other free-text fields, so it gets its own
   // column's limit: SQLite would happily store what MySQL has to refuse.
-  if (text(body.eventType).length > EVENT_TYPE_MAX) errors.eventType = 'Value is too long.';
-  if (text(body.details).length > 10000) errors.details = 'Message is too long.';
+  if (text(body.eventType).length > EVENT_TYPE_MAX) errors.eventType = "Value is too long.";
+  const details = text(body.details);
+  if (details.length < 10) errors.details = "Tell us a bit more — at least 10 characters.";
+  else if (details.length > 10000) errors.details = "Message is too long.";
 
   return { errors, value: { ...body, name, email, phone: normalisePhone(body.phone) } };
 }
 
-/** A business submission: name, category and a resolvable city are the minimum. */
+/** A business submission: every field is required except the starting price. */
 function validateSubmission(body) {
   const errors = {};
   const name = text(body.name);
-  if (name.length < 2) errors.name = 'Please enter the business name.';
-  if (name.length > 200) errors.name = 'Business name is too long.';
+  if (name.length < 2) errors.name = "Please enter the business name.";
+  if (name.length > 200) errors.name = "Business name is too long.";
 
   const category = queries.getCategoryBySlug(text(body.categorySlug));
-  if (!category) errors.categorySlug = 'Pick the category that fits best.';
+  if (!category) errors.categorySlug = "Pick the category that fits best.";
 
   const city = body.cityId ? queries.getCityById(Number(body.cityId)) : null;
   const cityText = text(body.cityText);
-  if (body.cityId && !city) errors.city = 'Pick a city from the list.';
-  else if (!city && cityText.length < 2) errors.city = 'Which city do you serve?';
+  if (body.cityId && !city) errors.city = "Pick a city from the list.";
+  else if (!city && cityText.length < 2) errors.city = "Which city do you serve?";
 
   const website = safeUrl(body.website);
-  if (text(body.website) && !website) errors.website = 'Enter a full web address, like https://example.com.';
+  if (!text(body.website)) errors.website = "Enter your website address.";
+  else if (!website) errors.website = "Enter a full web address, like https://example.com.";
 
   const email = text(body.email);
-  if (email && !EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
+  if (!email) errors.email = "Please enter a booking email.";
+  else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
 
   const priceFrom = toPrice(body.priceFrom);
-  if (priceFrom === undefined) errors.priceFrom = 'Enter a price in dollars, or leave it blank.';
+  if (priceFrom === undefined) errors.priceFrom = "Enter a price in dollars, or leave it blank.";
 
-  const phoneProblem = phoneError(body.phone);
-  if (phoneProblem) errors.phone = phoneProblem;
+  const phone = text(body.phone);
+  if (!phone) errors.phone = "Please enter a phone number.";
+  else {
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
+  }
 
   const description = text(body.description);
-  if (description.length > 5000) errors.description = 'Description is too long. Try a shorter summary.';
+  if (!description) errors.description = "Tell us what you offer.";
+  else if (description.length > 5000)
+    errors.description = "Description is too long. Try a shorter summary.";
 
   return {
     errors,
@@ -470,16 +506,27 @@ async function handleVendor(req, res, pathname) {
 
     const errors = {};
     const name = text(body.name);
-    if (name.length < 2) errors.name = 'Please enter the business name.';
+    if (name.length < 2) errors.name = "Please enter the business name.";
     const website = safeUrl(body.website);
-    if (text(body.website) && !website) errors.website = 'Enter a full web address, like https://example.com.';
+    if (!text(body.website)) errors.website = "Enter your website address.";
+    else if (!website) errors.website = "Enter a full web address, like https://example.com.";
     const email = text(body.email);
-    if (email && !EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
+    if (!email) errors.email = "Please enter a booking email.";
+    else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
     const priceFrom = toPrice(body.priceFrom);
-    if (priceFrom === undefined) errors.priceFrom = 'Enter a price in dollars, or leave it blank.';
-    const phoneProblem = phoneError(body.phone);
-    if (phoneProblem) errors.phone = phoneProblem;
-    if (Object.keys(errors).length > 0) return send(res, 422, { error: 'Validation failed', fields: errors });
+    if (priceFrom === undefined) errors.priceFrom = "Enter a price in dollars, or leave it blank.";
+    const phone = text(body.phone);
+    if (!phone) errors.phone = "Please enter a phone number.";
+    else {
+      const phoneProblem = phoneError(body.phone);
+      if (phoneProblem) errors.phone = phoneProblem;
+    }
+    const description = text(body.description);
+    if (!description) errors.description = "Tell us what you offer.";
+    else if (description.length > 5000)
+      errors.description = "Description is too long. Try a shorter summary.";
+    if (Object.keys(errors).length > 0)
+      return send(res, 422, { error: "Validation failed", fields: errors });
 
     // A new city is only applied when one was actually sent; otherwise the
     // listing keeps the city it already had (id or free text).
@@ -488,7 +535,7 @@ async function handleVendor(req, res, pathname) {
 
     const updated = queries.updateListing(listing.id, {
       name,
-      description: text(body.description),
+      description,
       website,
       phone: normalisePhone(body.phone),
       email: email || null,
@@ -506,26 +553,146 @@ async function handleVendor(req, res, pathname) {
 
 async function handleAdmin(req, res, pathname, url) {
   const user = currentUser(req);
-  if (!user) return send(res, 401, { error: 'Please log in first.' });
-  if (user.role !== 'admin') return send(res, 403, { error: 'Admins only.' });
+  if (!user) return send(res, 401, { error: "Please log in first." });
+  if (user.role !== "admin") return send(res, 403, { error: "Admins only." });
 
-  if (req.method === 'GET' && pathname === '/api/admin/stats') {
-    return send(res, 200, { stats: queries.directoryStats(), byStatus: queries.countListingsByStatus() });
+  if (req.method === "GET" && pathname === "/api/admin/stats") {
+    return send(res, 200, {
+      stats: queries.directoryStats(),
+      byStatus: queries.countListingsByStatus(),
+    });
   }
 
-  if (req.method === 'GET' && pathname === '/api/admin/submissions') {
-    const status = text(url.searchParams.get('status')) || 'pending';
+  if (req.method === "GET" && pathname === "/api/admin/submissions") {
+    const status = text(url.searchParams.get("status")) || "pending";
     return send(res, 200, { items: queries.listSubmissions(status) });
   }
 
-  if (req.method === 'GET' && pathname === '/api/admin/quotes') {
-    return send(res, 200, { items: queries.listRecentQuoteRequests(50) });
+  const page = url.searchParams.get("page");
+  const pageSize = url.searchParams.get("pageSize");
+
+  /* --- listings ------------------------------------------------------- */
+
+  if (req.method === "GET" && pathname === "/api/admin/listings") {
+    return send(
+      res,
+      200,
+      queries.adminListListings(
+        {
+          q: text(url.searchParams.get("q")),
+          status: text(url.searchParams.get("status")),
+          category: text(url.searchParams.get("category")),
+          featured: text(url.searchParams.get("featured")),
+          sort: text(url.searchParams.get("sort")),
+        },
+        { page, pageSize },
+      ),
+    );
+  }
+
+  const listingIdMatch = pathname.match(/^\/api\/admin\/listings\/(\d+)$/);
+  if (req.method === "GET" && listingIdMatch) {
+    const listing = queries.getListingById(Number(listingIdMatch[1]));
+    if (!listing) return send(res, 404, { error: "Not found" });
+    return send(res, 200, { listing });
+  }
+
+  if (req.method === "PATCH" && listingIdMatch) {
+    const listing = queries.getListingById(Number(listingIdMatch[1]));
+    if (!listing) return send(res, 404, { error: "Not found" });
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const errors = {};
+    const name = text(body.name);
+    if (name.length < 2) errors.name = "Please enter the business name.";
+    else if (name.length > 200) errors.name = "Business name is too long.";
+
+    const category = queries.getCategoryBySlug(text(body.categorySlug));
+    if (!category) errors.categorySlug = "Pick the category that fits best.";
+
+    const status = text(body.status);
+    if (!queries.LISTING_STATUSES.includes(status))
+      errors.status = "Status must be active, rejected or pending.";
+
+    // Unlike a vendor's own edit, an admin may clear a field: a blank website is
+    // stored as no website, but a broken one is still refused.
+    const website = text(body.website) ? safeUrl(body.website) : null;
+    if (text(body.website) && !website)
+      errors.website = "Enter a full web address, like https://example.com.";
+
+    const email = text(body.email);
+    if (email && !EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
+    else if (email.length > MAX_FIELD) errors.email = "Email is too long.";
+
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
+
+    const priceFrom = toPrice(body.priceFrom);
+    if (priceFrom === undefined) errors.priceFrom = "Enter a price in dollars, or leave it blank.";
+
+    const description = text(body.description);
+    if (description.length > 5000)
+      errors.description = "Description is too long. Try a shorter summary.";
+    const policies = text(body.policies);
+    if (policies.length > 5000) errors.policies = "Policies are too long.";
+    if (text(body.reviewNote).length > 1000) errors.reviewNote = "Reviewer note is too long.";
+
+    // Only a JSON number or a run of digits counts: true, 2.5 and "abc" are all
+    // refused rather than quietly becoming 1 or 2.
+    const rawPinRank = body.pinRank;
+    let pinRank = 0;
+    if (rawPinRank == null || rawPinRank === "") pinRank = 0;
+    else if (typeof rawPinRank === "number" && Number.isInteger(rawPinRank)) pinRank = rawPinRank;
+    else if (typeof rawPinRank === "string" && /^\d+$/.test(rawPinRank.trim()))
+      pinRank = Number(rawPinRank.trim());
+    else pinRank = -1;
+    if (pinRank < 0 || pinRank > 1000)
+      errors.pinRank = "Pin rank must be a whole number between 0 and 1000.";
+
+    if (Object.keys(errors).length > 0)
+      return send(res, 422, { error: "Validation failed", fields: errors });
+
+    // A typed city that matches a reference row is stored as that row, so a state
+    // search still finds the business; anything else stays free text.
+    const typedCity = text(body.cityText);
+    const matchedCity = typedCity ? queries.findCityByName(typedCity) : null;
+
+    const updated = queries.adminUpdateListing(listing.id, {
+      name,
+      categoryId: category.id,
+      cityId: matchedCity ? matchedCity.id : null,
+      stateId: matchedCity ? matchedCity.state_id : null,
+      cityText: matchedCity ? null : typedCity,
+      website,
+      phone: normalisePhone(body.phone),
+      email: email || null,
+      priceFrom: priceFrom ?? null,
+      description,
+      policies,
+      isFeatured: body.isFeatured === true || body.isFeatured === 1 || body.isFeatured === "1",
+      pinRank,
+      status,
+      reviewNote: text(body.reviewNote),
+    });
+    return send(res, 200, { listing: updated });
+  }
+
+  if (req.method === "DELETE" && listingIdMatch) {
+    const deleted = queries.adminDeleteListing(Number(listingIdMatch[1]));
+    if (!deleted) return send(res, 404, { error: "Not found" });
+    return send(res, 200, { deleted: true });
   }
 
   const review = pathname.match(/^\/api\/admin\/listings\/(\d+)\/status$/);
-  if (req.method === 'POST' && review) {
+  if (req.method === "POST" && review) {
     const listing = queries.getListingById(Number(review[1]));
-    if (!listing) return send(res, 404, { error: 'Not found' });
+    if (!listing) return send(res, 404, { error: "Not found" });
 
     let body;
     try {
@@ -535,12 +702,184 @@ async function handleAdmin(req, res, pathname, url) {
     }
 
     const status = text(body.status);
-    if (!['active', 'rejected', 'pending'].includes(status)) {
-      return send(res, 422, { error: 'Status must be active, rejected or pending.' });
+    if (!queries.LISTING_STATUSES.includes(status)) {
+      return send(res, 422, { error: "Status must be active, rejected or pending." });
     }
 
     const updated = queries.setListingStatus(listing.id, status, text(body.note));
-    return send(res, 200, { listing: { id: updated.id, name: updated.name, status: updated.status } });
+    return send(res, 200, {
+      listing: { id: updated.id, name: updated.name, status: updated.status },
+    });
+  }
+
+  /* --- accounts ------------------------------------------------------- */
+
+  if (req.method === "GET" && pathname === "/api/admin/users") {
+    return send(
+      res,
+      200,
+      queries.adminListUsers(
+        {
+          q: text(url.searchParams.get("q")),
+          role: text(url.searchParams.get("role")),
+          status: text(url.searchParams.get("status")),
+        },
+        { page, pageSize },
+      ),
+    );
+  }
+
+  const userPassword = pathname.match(/^\/api\/admin\/users\/(\d+)\/password$/);
+  if (req.method === "POST" && userPassword) {
+    const target = queries.getUserById(Number(userPassword[1]));
+    if (!target) return send(res, 404, { error: "Not found" });
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const password = String(body.password ?? "");
+    if (password.length < 8)
+      return send(res, 422, {
+        error: "Validation failed",
+        fields: { password: "Use at least 8 characters." },
+      });
+    if (password.length > 200)
+      return send(res, 422, {
+        error: "Validation failed",
+        fields: { password: "Password is too long." },
+      });
+
+    queries.setUserPassword(target.id, auth.hashPassword(password));
+    queries.destroySessionsForUser(target.id);
+    return send(res, 200, { ok: true });
+  }
+
+  const userIdMatch = pathname.match(/^\/api\/admin\/users\/(\d+)$/);
+  if (req.method === "PATCH" && userIdMatch) {
+    const target = queries.getUserById(Number(userIdMatch[1]));
+    if (!target) return send(res, 404, { error: "Not found" });
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const errors = {};
+    const name = text(body.name);
+    if (name.length < 2) errors.name = "Please enter a name.";
+    else if (name.length > 200) errors.name = "Name is too long.";
+    const role = text(body.role);
+    if (!queries.USER_ROLES.includes(role)) errors.role = "Role must be parent, vendor or admin.";
+    const status = text(body.status);
+    if (!queries.USER_STATUSES.includes(status))
+      errors.status = "Status must be active or suspended.";
+    const phoneProblem = phoneError(body.phone);
+    if (phoneProblem) errors.phone = phoneProblem;
+    if (Object.keys(errors).length > 0)
+      return send(res, 422, { error: "Validation failed", fields: errors });
+
+    // An admin must not be able to lock themselves out of the panel.
+    if (target.id === user.id && (role !== "admin" || status !== "active")) {
+      return send(res, 422, { error: "You cannot remove your own admin access." });
+    }
+
+    const updated = queries.adminUpdateUser(target.id, {
+      name,
+      phone: normalisePhone(body.phone),
+      role,
+      status,
+    });
+    // A suspended account keeps no live session.
+    if (status !== "active") queries.destroySessionsForUser(target.id);
+    return send(res, 200, { user: updated });
+  }
+
+  if (req.method === "DELETE" && userIdMatch) {
+    const target = queries.getUserById(Number(userIdMatch[1]));
+    if (!target) return send(res, 404, { error: "Not found" });
+    if (target.id === user.id)
+      return send(res, 422, { error: "You cannot delete your own account." });
+
+    queries.adminDeleteUser(target.id);
+    return send(res, 200, { deleted: true });
+  }
+
+  /* --- categories ----------------------------------------------------- */
+
+  if (req.method === "GET" && pathname === "/api/admin/categories") {
+    return send(res, 200, { items: queries.adminListCategories() });
+  }
+
+  const categoryMatch = pathname.match(/^\/api\/admin\/categories\/(\d+)$/);
+  if (req.method === "PATCH" && categoryMatch) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const errors = {};
+    const name = text(body.name);
+    if (name.length < 2) errors.name = "Please enter a category name.";
+    else if (name.length > 100) errors.name = "Category name is too long.";
+    if (text(body.tagline).length > 300) errors.tagline = "Tagline is too long.";
+    if (Object.keys(errors).length > 0)
+      return send(res, 422, { error: "Validation failed", fields: errors });
+
+    const updated = queries.adminUpdateCategory(Number(categoryMatch[1]), {
+      name,
+      tagline: text(body.tagline),
+      isActive: body.isActive !== false,
+    });
+    if (!updated) return send(res, 404, { error: "Not found" });
+    return send(res, 200, { category: updated });
+  }
+
+  const subcategoryMatch = pathname.match(/^\/api\/admin\/subcategories\/(\d+)$/);
+  if (req.method === "PATCH" && subcategoryMatch) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      return send(res, 400, { error: error.message });
+    }
+
+    const name = text(body.name);
+    if (name.length < 2)
+      return send(res, 422, {
+        error: "Validation failed",
+        fields: { name: "Please enter a label." },
+      });
+    if (name.length > 100)
+      return send(res, 422, { error: "Validation failed", fields: { name: "Label is too long." } });
+
+    const updated = queries.adminUpdateSubcategory(Number(subcategoryMatch[1]), { name });
+    if (!updated) return send(res, 404, { error: "Not found" });
+    return send(res, 200, { subcategory: updated });
+  }
+
+  /* --- quote requests ------------------------------------------------- */
+
+  if (req.method === "GET" && pathname === "/api/admin/quotes") {
+    return send(
+      res,
+      200,
+      queries.adminListQuoteRequests({ q: text(url.searchParams.get("q")) }, { page, pageSize }),
+    );
+  }
+
+  const quoteMatch = pathname.match(/^\/api\/admin\/quotes\/(\d+)$/);
+  if (req.method === "DELETE" && quoteMatch) {
+    const deleted = queries.adminDeleteQuoteRequest(Number(quoteMatch[1]));
+    if (!deleted) return send(res, 404, { error: "Not found" });
+    return send(res, 200, { deleted: true });
   }
 
   return false;
@@ -626,43 +965,49 @@ async function handleApi(req, res) {
      * What the directory can honestly claim: counts, plus how many businesses
      * publish a price. The UI hides the price controls when that number is 0.
      */
-    if (req.method === 'GET' && pathname === '/api/directory-summary') {
+    if (req.method === "GET" && pathname === "/api/directory-summary") {
       return send(res, 200, queries.directorySummary());
     }
 
-    if (req.method === 'GET' && pathname === '/api/cities') {
-      const term = text(url.searchParams.get('q'));
+    if (req.method === "GET" && pathname === "/api/cities") {
+      const term = text(url.searchParams.get("q"));
       if (term) return send(res, 200, queries.searchCities(term, 8));
-      const limit = Math.min(50, Number(url.searchParams.get('limit') || 12));
+      const limit = Math.min(50, Number(url.searchParams.get("limit") || 12));
       return send(res, 200, queries.listCitiesWithCounts(limit));
     }
 
-    if (req.method === 'GET' && pathname === '/api/listings') {
+    // The whole list is 50-odd rows, so it is sent in one go and the Where box
+    // filters it locally instead of asking again on every keystroke.
+    if (req.method === "GET" && pathname === "/api/states") {
+      return send(res, 200, queries.listStatesWithCounts());
+    }
+
+    if (req.method === "GET" && pathname === "/api/listings") {
       const params = url.searchParams;
-      const category = text(params.get('category'));
-      const slugMap = { fairies: 'fairy', 'non-mascot-characters': 'non-mascots' };
+      const category = text(params.get("category"));
+      const slugMap = { fairies: "fairy", "non-mascot-characters": "non-mascots" };
       let categoryId;
       if (category) {
         const cat = queries.getCategoryBySlug(slugMap[category] || category);
         categoryId = cat?.id;
       }
-      const city = text(params.get('city')) || text(params.get('location'));
+      const city = text(params.get("city")) || text(params.get("location"));
       const filters = {
-        q: text(params.get('q')) || undefined,
+        q: text(params.get("q")) || undefined,
         categoryId,
-        city: city.replace(/,\s*[A-Z]{2}$/i, '').trim() || undefined,
-        priceMin: params.has('priceMin') ? Number(params.get('priceMin')) : undefined,
-        priceMax: params.has('priceMax') ? Number(params.get('priceMax')) : undefined,
-        ratingMin: params.has('ratingMin') ? Number(params.get('ratingMin')) : undefined,
-        featuredOnly: params.get('featured') === '1',
-        sort: text(params.get('sort')) || undefined,
+        city: city.replace(/,\s*[A-Z]{2}$/i, "").trim() || undefined,
+        priceMin: params.has("priceMin") ? Number(params.get("priceMin")) : undefined,
+        priceMax: params.has("priceMax") ? Number(params.get("priceMax")) : undefined,
+        ratingMin: params.has("ratingMin") ? Number(params.get("ratingMin")) : undefined,
+        featuredOnly: params.get("featured") === "1",
+        sort: text(params.get("sort")) || undefined,
       };
-      for (const key of ['priceMin', 'priceMax', 'ratingMin']) {
+      for (const key of ["priceMin", "priceMax", "ratingMin"]) {
         if (Number.isNaN(filters[key])) filters[key] = undefined;
       }
 
-      const page = Math.max(1, Number(params.get('page') || 1));
-      const pageSize = Math.min(48, Math.max(1, Number(params.get('pageSize') || 24)));
+      const page = Math.max(1, Number(params.get("page") || 1));
+      const pageSize = Math.min(48, Math.max(1, Number(params.get("pageSize") || 24)));
       return send(res, 200, {
         total: queries.countListings(filters),
         page,

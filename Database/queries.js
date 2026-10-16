@@ -35,6 +35,24 @@ function listCitiesWithCounts(limit = 12) {
     .all(limit);
 }
 
+/**
+ * States that actually have active listings, most-populated first. The Where box
+ * offers these beside cities, and their counts are the same active-listing counts the
+ * search returns, so a suggestion never promises more than the directory holds.
+ */
+function listStatesWithCounts() {
+  return db
+    .prepare(
+      `SELECT s.code, s.name, COUNT(*) AS listing_count
+         FROM listings l
+         JOIN states s ON s.id = l.state_id
+        WHERE l.status = 'active'
+        GROUP BY s.id
+        ORDER BY listing_count DESC, s.name`,
+    )
+    .all();
+}
+
 /** Specialty labels grouped by category slug, e.g. { superheroes: ["…"] }. */
 function subcategoriesByCategory() {
   const rows = db
@@ -62,9 +80,12 @@ function subcategoriesByCategory() {
  */
 function listCategories({ location } = {}) {
   const subcategories = subcategoriesByCategory();
-  const city = String(location ?? '').trim();
-  const cityClause = city ? ' AND (ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)' : '';
-  const params = city ? [`%${city}%`, `%${city}%`, city.toUpperCase()] : [];
+  const city = String(location ?? "").trim();
+  // A whole state is a valid answer to "Where?" (the box offers state names beside city
+  // names), so the count has to answer a state name as well as a city.
+  const [stateClause, stateParams] = city ? stateMatchSql("s", city) : ["", []];
+  const cityClause = city ? ` AND (ci.name LIKE ? OR l.city_text LIKE ? OR ${stateClause})` : "";
+  const params = city ? [`%${city}%`, `%${city}%`, ...stateParams] : [];
   return db
     .prepare(
       `SELECT c.id, c.slug, c.name, c.tagline, c.icon,
@@ -164,71 +185,96 @@ function listCities({ countryId, stateId } = {}) {
  * listings.pin_rank so that neither a data reload nor a dashboard edit can move them.
  */
 const PINNED_SLUGS = [
-  'party-characters-for-hire', // Party Characters For Hire (partycharactersforhire.com)
-  'party-characters-for-kids-new-york', // Characters For Party
-  'party-characters-for-kids', // Party Characters For Kids
+  "party-characters-for-hire", // Party Characters For Hire (partycharactersforhire.com)
+  "party-characters-for-kids-new-york", // Characters For Party
+  "party-characters-for-kids", // Party Characters For Kids
 ];
-const PINNED_SLUGS_SQL = PINNED_SLUGS.map((slug) => `'${slug}'`).join(', ');
+const PINNED_SLUGS_SQL = PINNED_SLUGS.map((slug) => `'${slug}'`).join(", ");
 
 /**
  * The per-city siblings of the last one, one per city. Whichever belongs to the city
  * being viewed follows the pins above; on any other page the filter keeps them out.
  */
-const PINNED_CITY_PREFIX = 'party-characters-for-kids-';
+const PINNED_CITY_PREFIX = "party-characters-for-kids-";
 
 /** The pins in their given order, then the city sibling, then everything else. */
 const PINNED_ORDER_SQL = `CASE${PINNED_SLUGS.map(
-  (slug, rank) => ` WHEN l.slug = '${slug}' THEN ${rank}`
-).join('')} WHEN l.slug LIKE '${PINNED_CITY_PREFIX}%' THEN ${PINNED_SLUGS.length} ELSE ${PINNED_SLUGS.length + 1} END`;
+  (slug, rank) => ` WHEN l.slug = '${slug}' THEN ${rank}`,
+).join(
+  "",
+)} WHEN l.slug LIKE '${PINNED_CITY_PREFIX}%' THEN ${PINNED_SLUGS.length} ELSE ${PINNED_SLUGS.length + 1} END`;
 
 function buildFilters(filters) {
   const where = ["l.status = 'active'"];
   const params = [];
 
   if (filters.q) {
-    where.push('(l.name LIKE ? OR l.description LIKE ?)');
+    where.push("(l.name LIKE ? OR l.description LIKE ?)");
     const like = `%${filters.q}%`;
     params.push(like, like);
   }
   if (filters.categoryId) {
     // Match any category the business belongs to, not just its primary one.
-    where.push('EXISTS (SELECT 1 FROM listing_categories lc WHERE lc.listing_id = l.id AND lc.category_id = ?)');
+    where.push(
+      "EXISTS (SELECT 1 FROM listing_categories lc WHERE lc.listing_id = l.id AND lc.category_id = ?)",
+    );
     params.push(filters.categoryId);
   }
   if (filters.countryId) {
-    where.push('l.country_id = ?');
+    where.push("l.country_id = ?");
     params.push(filters.countryId);
   }
   if (filters.cityId) {
-    where.push('l.city_id = ?');
+    where.push("l.city_id = ?");
     params.push(filters.cityId);
   }
   if (filters.city) {
-    // Match the reference city, the free-text city a submission typed, or a
-    // state code. Deliberately not l.name: a business called "Dallas Heroes"
-    // should not answer a Dallas location search by accident.
-    where.push('(ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)');
+    // Match the reference city, the free-text city a submission typed, or the state the
+    // visitor named. Deliberately not l.name: a business called "Dallas Heroes" should
+    // not answer a Dallas location search by accident.
+    const [stateClause, stateParams] = stateMatchSql("s", filters.city);
+    where.push(`(ci.name LIKE ? OR l.city_text LIKE ? OR ${stateClause})`);
     const like = `%${filters.city}%`;
-    params.push(like, like, String(filters.city).toUpperCase());
+    params.push(like, like, ...stateParams);
   }
   if (filters.priceMin != null) {
     // Businesses with no published price cannot claim to be under a budget.
-    where.push('l.price_from IS NOT NULL AND l.price_from >= ?');
+    where.push("l.price_from IS NOT NULL AND l.price_from >= ?");
     params.push(filters.priceMin);
   }
   if (filters.priceMax != null) {
-    where.push('l.price_from IS NOT NULL AND l.price_from <= ?');
+    where.push("l.price_from IS NOT NULL AND l.price_from <= ?");
     params.push(filters.priceMax);
   }
   if (filters.ratingMin != null) {
-    where.push('l.rating IS NOT NULL AND l.rating >= ?');
+    where.push("l.rating IS NOT NULL AND l.rating >= ?");
     params.push(filters.ratingMin);
   }
   if (filters.featuredOnly) {
-    where.push('l.is_featured = 1');
+    where.push("l.is_featured = 1");
   }
 
-  return { clause: where.join(' AND '), params };
+  return { clause: where.join(" AND "), params };
+}
+
+/**
+ * How a state answers a location term: its two-letter code, or the start of its name,
+ * or — once the term is three characters or longer — the start of any word in its name
+ * ("carolina" finds both Carolinas, "york" finds New York). A state is deliberately
+ * never matched in the middle of its name: that would answer "ca" with Carolina as well
+ * as California, and the code already says which of those was meant.
+ */
+function stateMatchSql(stateAlias, city) {
+  if (city.length < 3) {
+    return [
+      `(${stateAlias}.code = ? OR ${stateAlias}.name LIKE ?)`,
+      [city.toUpperCase(), `${city}%`],
+    ];
+  }
+  return [
+    `(${stateAlias}.code = ? OR ${stateAlias}.name LIKE ? OR ${stateAlias}.name LIKE ?)`,
+    [city.toUpperCase(), `${city}%`, `% ${city}%`],
+  ];
 }
 
 /**
@@ -237,12 +283,16 @@ function buildFilters(filters) {
  * Returns a null clause when no city was asked for.
  */
 function cityMatchSql(cityAlias, listingAlias, stateAlias, filters) {
-  const city = String(filters.city ?? '').trim();
+  const city = String(filters.city ?? "").trim();
   const cityId = Number(filters.cityId ?? 0);
 
   if (city) {
     const like = `%${city}%`;
-    return [`(${cityAlias}.name LIKE ? OR ${listingAlias}.city_text LIKE ? OR ${stateAlias}.code = ?)`, [like, like, city.toUpperCase()]];
+    const [stateClause, stateParams] = stateMatchSql(stateAlias, city);
+    return [
+      `(${cityAlias}.name LIKE ? OR ${listingAlias}.city_text LIKE ? OR ${stateClause})`,
+      [like, like, ...stateParams],
+    ];
   }
   if (cityId > 0) {
     return [`${listingAlias}.city_id = ?`, [cityId]];
@@ -758,6 +808,312 @@ function listRecentQuoteRequests(limit = 20) {
 }
 
 /* ------------------------------------------------------------------------- */
+/* Admin console                                                              */
+/* ------------------------------------------------------------------------- */
+
+const ADMIN_PAGE_SIZE = 25;
+const ADMIN_MAX_PAGE_SIZE = 100;
+const USER_ROLES = ["parent", "vendor", "admin"];
+const USER_STATUSES = ["active", "suspended"];
+const LISTING_STATUSES = ["active", "pending", "rejected"];
+
+/** Shared by every admin list endpoint so page/pageSize can never be negative. */
+function adminPaging({ page, pageSize }, fallbackSize = ADMIN_PAGE_SIZE) {
+  const size = Math.min(Math.max(1, Number(pageSize) || fallbackSize), ADMIN_MAX_PAGE_SIZE);
+  const current = Math.max(1, Number(page) || 1);
+  return { page: current, pageSize: size, offset: (current - 1) * size };
+}
+
+/**
+ * The admin tables and the edit form need the foreign keys and the moderation
+ * columns too, which the public selectListings() deliberately leaves out.
+ */
+function selectAdminListings(whereSql, params, { order = "l.name", limit, offset = 0 } = {}) {
+  const paged = limit == null ? "" : " LIMIT ? OFFSET ?";
+  const args = limit == null ? params : [...params, limit, offset];
+  return db
+    .prepare(
+      `SELECT l.id, l.name, l.slug, l.description, l.policies, l.website, l.icon_url, l.image_url,
+              l.phone, l.email, l.price_from, l.rating, l.review_count, l.is_featured, l.pin_rank,
+              l.status, l.review_note, l.submitted_by, l.created_at,
+              l.category_id, l.country_id, l.state_id, l.city_id, l.city_text,
+              c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
+              COALESCE(ci.name, l.city_text) AS city_name,
+              CASE WHEN ci.id IS NULL THEN NULL ELSE s.code END AS state_code,
+              co.code AS country_code
+         FROM listings l
+         JOIN categories c ON c.id = l.category_id
+         JOIN countries  co ON co.id = l.country_id
+         LEFT JOIN cities ci ON ci.id = l.city_id
+         LEFT JOIN states s  ON s.id  = l.state_id
+        WHERE ${whereSql}
+        ORDER BY ${order}${paged}`,
+    )
+    .all(...args);
+}
+
+const ADMIN_LISTING_SORTS = {
+  newest: "l.created_at DESC, l.id DESC",
+  name: "l.name",
+  price_asc: "l.price_from IS NULL, l.price_from ASC, l.name",
+  price_desc: "l.price_from IS NULL, l.price_from DESC, l.name",
+  rating: "l.rating IS NULL, l.rating DESC, l.name",
+  featured: "l.is_featured DESC, l.pin_rank DESC, l.name",
+};
+
+/** Free-text and dropdown filters for the admin listings table. */
+function buildAdminListingFilters({ q, status, category, featured } = {}) {
+  const where = [];
+  const params = [];
+
+  if (LISTING_STATUSES.includes(status)) {
+    where.push("l.status = ?");
+    params.push(status);
+  }
+  if (featured === true || featured === "1") where.push("l.is_featured = 1");
+  if (category) {
+    where.push("l.category_id = (SELECT id FROM categories WHERE slug = ?)");
+    params.push(String(category));
+  }
+
+  const term = String(q ?? "").trim();
+  if (term) {
+    where.push("(l.name LIKE ? OR l.website LIKE ? OR l.email LIKE ? OR l.slug LIKE ?)");
+    const like = `%${term}%`;
+    params.push(like, like, like, like);
+  }
+
+  return { clause: where.length > 0 ? where.join(" AND ") : "1 = 1", params };
+}
+
+function adminListListings(filters = {}, { page, pageSize } = {}) {
+  const { clause, params } = buildAdminListingFilters(filters);
+  const paging = adminPaging({ page, pageSize });
+  const total = db
+    .prepare(`SELECT COUNT(*) AS total FROM listings l WHERE ${clause}`)
+    .get(...params).total;
+  const items = selectAdminListings(clause, params, {
+    order: ADMIN_LISTING_SORTS[filters.sort] ?? ADMIN_LISTING_SORTS.newest,
+    limit: paging.pageSize,
+    offset: paging.offset,
+  });
+  return { items, total, page: paging.page, pageSize: paging.pageSize };
+}
+
+/**
+ * Full row edit. The caller has already turned the category slug into an id and
+ * decided whether the city matched a reference row (id) or is free text.
+ */
+function adminUpdateListing(listingId, data) {
+  db.prepare(
+    `UPDATE listings
+        SET name = ?, category_id = ?, city_id = ?, state_id = ?, city_text = ?,
+            website = ?, phone = ?, email = ?, price_from = ?, description = ?, policies = ?,
+            is_featured = ?, pin_rank = ?, status = ?, review_note = ?
+      WHERE id = ?`,
+  ).run(
+    String(data.name).trim(),
+    data.categoryId,
+    data.cityId ?? null,
+    data.stateId ?? null,
+    nullableText(data.cityText),
+    nullableText(data.website),
+    nullableText(data.phone),
+    nullableText(data.email),
+    data.priceFrom ?? null,
+    nullableText(data.description),
+    nullableText(data.policies),
+    data.isFeatured ? 1 : 0,
+    Number.isFinite(data.pinRank) ? data.pinRank : 0,
+    data.status,
+    nullableText(data.reviewNote),
+    listingId,
+  );
+  // The primary category is always one the business belongs to, but changing it
+  // never silently removes the other categories it was filed under.
+  addListingCategory(listingId, data.categoryId);
+  return getListingById(listingId);
+}
+
+/** Quote requests and favourites cascade in both backends; the row itself is the delete. */
+function adminDeleteListing(listingId) {
+  return db.prepare("DELETE FROM listings WHERE id = ?").run(listingId).changes > 0;
+}
+
+/** Free-text city to a reference row, so an edit keeps state search working. */
+function findCityByName(name) {
+  const clean = String(name ?? "").trim();
+  if (!clean) return null;
+  return (
+    db
+      .prepare(
+        `SELECT ci.id, ci.name, ci.state_id, s.code AS state_code
+           FROM cities ci
+           JOIN states s ON s.id = ci.state_id
+          WHERE lower(ci.name) = lower(?)
+          ORDER BY ci.id
+          LIMIT 1`,
+      )
+      .get(clean) ?? null
+  );
+}
+
+function adminListUsers(filters = {}, { page, pageSize } = {}) {
+  const where = [];
+  const params = [];
+
+  if (USER_ROLES.includes(filters.role)) {
+    where.push("u.role = ?");
+    params.push(filters.role);
+  }
+  if (USER_STATUSES.includes(filters.status)) {
+    where.push("u.status = ?");
+    params.push(filters.status);
+  }
+  const term = String(filters.q ?? "").trim();
+  if (term) {
+    where.push("(u.email LIKE ? OR u.name LIKE ?)");
+    const like = `%${term}%`;
+    params.push(like, like);
+  }
+
+  const clause = where.length > 0 ? where.join(" AND ") : "1 = 1";
+  const paging = adminPaging({ page, pageSize });
+  const total = db
+    .prepare(`SELECT COUNT(*) AS total FROM users u WHERE ${clause}`)
+    .get(...params).total;
+  const items = db
+    .prepare(
+      `SELECT u.id, u.email, u.name, u.phone, u.role, u.status, u.listing_id, u.created_at,
+              l.name AS listing_name, l.slug AS listing_slug
+         FROM users u
+         LEFT JOIN listings l ON l.id = u.listing_id
+        WHERE ${clause}
+        ORDER BY u.created_at DESC, u.id DESC
+        LIMIT ? OFFSET ?`,
+    )
+    .all(...params, paging.pageSize, paging.offset);
+  return { items, total, page: paging.page, pageSize: paging.pageSize };
+}
+
+function adminUpdateUser(userId, data) {
+  db.prepare("UPDATE users SET name = ?, phone = ?, role = ?, status = ? WHERE id = ?").run(
+    String(data.name).trim(),
+    nullableText(data.phone),
+    data.role,
+    data.status,
+    userId,
+  );
+  return getUserById(userId);
+}
+
+/**
+ * Deleting an account also orphans the businesses it submitted. SQLite does that
+ * through a foreign key and MySQL does not, so it is done by hand to keep the two
+ * backends answering the same way.
+ */
+function adminDeleteUser(userId) {
+  db.prepare("UPDATE listings SET submitted_by = NULL WHERE submitted_by = ?").run(userId);
+  db.prepare("UPDATE quote_requests SET user_id = NULL WHERE user_id = ?").run(userId);
+  return db.prepare("DELETE FROM users WHERE id = ?").run(userId).changes > 0;
+}
+
+/** Every admin or self-service password change ends the account's other sessions. */
+function destroySessionsForUser(userId) {
+  return db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes;
+}
+
+function adminListCategories() {
+  const categories = db
+    .prepare(
+      `SELECT c.id, c.slug, c.name, c.tagline, c.icon, c.sort_order, c.is_active,
+              (SELECT COUNT(*) FROM listings l WHERE l.category_id = c.id) AS listing_count,
+              (SELECT COUNT(*) FROM listings l WHERE l.category_id = c.id AND l.status = 'active') AS active_count
+         FROM categories c
+        ORDER BY c.sort_order, c.name`,
+    )
+    .all();
+
+  const subcategories = db
+    .prepare(
+      `SELECT id, category_id, slug, name, sort_order
+         FROM subcategories
+        ORDER BY category_id, sort_order, id`,
+    )
+    .all();
+  const byCategory = new Map();
+  for (const row of subcategories) {
+    if (!byCategory.has(row.category_id)) byCategory.set(row.category_id, []);
+    byCategory.get(row.category_id).push(row);
+  }
+
+  return categories.map((category) => ({
+    ...category,
+    subcategories: byCategory.get(category.id) ?? [],
+  }));
+}
+
+function adminUpdateCategory(categoryId, { name, tagline, isActive }) {
+  db.prepare("UPDATE categories SET name = ?, tagline = ?, is_active = ? WHERE id = ?").run(
+    String(name).trim(),
+    nullableText(tagline),
+    isActive ? 1 : 0,
+    categoryId,
+  );
+  return (
+    db
+      .prepare(
+        "SELECT id, slug, name, tagline, icon, sort_order, is_active FROM categories WHERE id = ?",
+      )
+      .get(categoryId) ?? null
+  );
+}
+
+function adminUpdateSubcategory(subcategoryId, { name }) {
+  db.prepare("UPDATE subcategories SET name = ? WHERE id = ?").run(
+    String(name).trim(),
+    subcategoryId,
+  );
+  return (
+    db
+      .prepare("SELECT id, category_id, slug, name, sort_order FROM subcategories WHERE id = ?")
+      .get(subcategoryId) ?? null
+  );
+}
+
+function adminListQuoteRequests({ q, page, pageSize } = {}) {
+  const where = [];
+  const params = [];
+  const term = String(q ?? "").trim();
+  if (term) {
+    where.push("(qt.name LIKE ? OR qt.email LIKE ? OR qt.city LIKE ?)");
+    const like = `%${term}%`;
+    params.push(like, like, like);
+  }
+
+  const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  const paging = adminPaging({ page, pageSize });
+  const total = db
+    .prepare(`SELECT COUNT(*) AS total FROM quote_requests qt ${clause}`)
+    .get(...params).total;
+  const items = db
+    .prepare(
+      `SELECT qt.*, l.name AS vendor_name
+         FROM quote_requests qt
+         LEFT JOIN listings l ON l.id = qt.vendor_id
+         ${clause}
+        ORDER BY qt.created_at DESC, qt.id DESC
+        LIMIT ? OFFSET ?`,
+    )
+    .all(...params, paging.pageSize, paging.offset);
+  return { items, total, page: paging.page, pageSize: paging.pageSize };
+}
+
+function adminDeleteQuoteRequest(id) {
+  return db.prepare("DELETE FROM quote_requests WHERE id = ?").run(id).changes > 0;
+}
+
+/* ------------------------------------------------------------------------- */
 /* Directory stats (admin dashboard)                                          */
 /* ------------------------------------------------------------------------- */
 
@@ -789,6 +1145,7 @@ module.exports = {
   listStates,
   listCities,
   listCitiesWithCounts,
+  listStatesWithCounts,
   searchCities,
   directorySummary,
   subcategoriesByCategory,
@@ -824,4 +1181,21 @@ module.exports = {
   removeFavorite,
   listFavoriteListings,
   directoryStats,
+  ADMIN_PAGE_SIZE,
+  USER_ROLES,
+  USER_STATUSES,
+  LISTING_STATUSES,
+  adminListListings,
+  adminUpdateListing,
+  adminDeleteListing,
+  findCityByName,
+  adminListUsers,
+  adminUpdateUser,
+  adminDeleteUser,
+  destroySessionsForUser,
+  adminListCategories,
+  adminUpdateCategory,
+  adminUpdateSubcategory,
+  adminListQuoteRequests,
+  adminDeleteQuoteRequest,
 };

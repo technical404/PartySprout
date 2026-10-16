@@ -102,12 +102,26 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
     setError(null);
     setFields({});
 
-    // Answer what these rules cover straight away, so a letter in the phone
-    // field or a currency symbol in the price is not a round trip. The server
-    // re-checks all of it.
+    // Answer what these rules cover straight away, so a missing field, a letter
+    // in the phone field or a currency symbol in the price is not a round trip.
+    // The server re-checks all of it.
     const local: Record<string, string> = {};
-    const phoneProblem = phoneError(values.phone);
-    if (phoneProblem) local["phone"] = phoneProblem;
+    const required: Array<[keyof FormValues, string]> = [
+      ["name", "Please enter the business name."],
+      ["categorySlug", "Pick the category that fits best."],
+      ["city", "Which city do you serve?"],
+      ["website", "Enter your website address."],
+      ["phone", "Please enter a phone number."],
+      ["email", "Please enter a booking email."],
+      ["description", "Tell us what you offer."],
+    ];
+    for (const [key, message] of required) {
+      if (!values[key].trim()) local[key] = message;
+    }
+    if (!local["phone"]) {
+      const phoneProblem = phoneError(values.phone);
+      if (phoneProblem) local["phone"] = phoneProblem;
+    }
     const priceProblem = amountError(values.priceFrom);
     if (priceProblem) local["priceFrom"] = priceProblem;
     if (Object.keys(local).length > 0) {
@@ -199,20 +213,20 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
-        Website (optional)
-        <Input value={values.website} onChange={set("website")} placeholder="https://example.com" className={CONTROL_CLASS} />
+        Website
+        <Input value={values.website} onChange={set("website")} placeholder="https://example.com" required className={CONTROL_CLASS} />
         {fields["website"] && <span className="text-xs font-medium text-destructive">{fields["website"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
-        Phone (optional)
-        <Input type="tel" inputMode="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: sanitisePhoneInput(event.target.value) }))} placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} className={CONTROL_CLASS} />
+        Phone
+        <Input type="tel" inputMode="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: sanitisePhoneInput(event.target.value) }))} placeholder="+1 555 010 2030" aria-invalid={Boolean(fields["phone"])} required className={CONTROL_CLASS} />
         {fields["phone"] && <span className="text-xs font-medium text-destructive">{fields["phone"]}</span>}
       </label>
 
       <label className="grid gap-2 text-sm font-semibold">
-        Booking email (optional)
-        <Input type="email" value={values.email} onChange={set("email")} placeholder="bookings@example.com" className={CONTROL_CLASS} />
+        Booking email
+        <Input type="email" value={values.email} onChange={set("email")} placeholder="bookings@example.com" required className={CONTROL_CLASS} />
         {fields["email"] && <span className="text-xs font-medium text-destructive">{fields["email"]}</span>}
       </label>
 
@@ -228,7 +242,7 @@ function BusinessForm({ listing, onSaved }: { listing?: OwnedListing | undefined
 
       <label className="grid gap-2 text-sm font-semibold sm:col-span-2">
         What you offer
-        <Textarea rows={6} value={values.description} onChange={set("description")} placeholder="Characters, party length, travel area, what is included…" className={CONTROL_AREA_CLASS} />
+        <Textarea rows={6} value={values.description} onChange={set("description")} placeholder="Characters, party length, travel area, what is included…" required className={CONTROL_AREA_CLASS} />
         {fields["description"] && <span className="text-xs font-medium text-destructive">{fields["description"]}</span>}
       </label>
     </div>

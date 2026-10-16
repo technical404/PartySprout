@@ -116,13 +116,22 @@ const ALL_EVENT_TYPES = [
 const quoteSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name."),
   email: z.string().trim().min(1, "Please enter your email.").email("Enter a valid email address."),
-  // Optional, but it has to look like a phone number: type="tel" only hints to
-  // the mobile keyboard and never rejected a letter.
-  phone: z.string().trim().refine(isValidPhone, { message: PHONE_ERROR }),
-  eventDate: z.string(),
+  // Every question is answered before a request goes out. A request an
+  // entertainer cannot act on costs the parent and the business a round trip,
+  // which is slower than asking here.
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Please enter your phone number.")
+    .refine(isValidPhone, { message: PHONE_ERROR }),
+  eventDate: z.string().trim().min(1, "Please pick the date of the party."),
   city: z.string().trim().min(2, "Which city is the party in?"),
-  guestCount: z.string().trim().refine((value) => countError(value) === null, { message: "Use a whole number of children." }),
-  childAge: z.string().trim(),
+  guestCount: z
+    .string()
+    .trim()
+    .min(1, "How many children are you expecting?")
+    .refine((value) => countError(value) === null, { message: "Use a whole number of children." }),
+  childAge: z.string().trim().min(1, "How old are the children?"),
   eventType: z.string().min(1, "Pick the type of event you are planning."),
   category: z.string().min(1, "Pick the entertainment you are after."),
   budget: z.string().min(1, "Please pick an approximate budget."),
@@ -148,8 +157,8 @@ const EMPTY_FORM: QuoteFormValues = {
 /**
  * The request is asked one question at a time rather than as one long form.
  * Each step owns a single field, shows how far along the visitor is, and has to
- * be answered before the next one opens — so nobody reaches the end with a
- * missing answer behind them. Optional questions simply let "Next" through.
+ * pass its own rule before the next question opens — so nobody reaches the end
+ * with a missing answer behind them.
  */
 type QuoteStep = {
   field: keyof QuoteFormValues;
@@ -178,7 +187,7 @@ const STEPS: QuoteStep[] = [
   {
     field: "eventDate",
     question: "When is the party?",
-    hint: "Skip this if you have not settled on a date yet.",
+    hint: "The day you are planning the party for.",
   },
   {
     field: "guestCount",
@@ -209,7 +218,7 @@ const STEPS: QuoteStep[] = [
   {
     field: "phone",
     question: "What is your phone number?",
-    hint: "Optional, but it is the quickest way to reach you.",
+    hint: "The quickest way for entertainers to reach you.",
   },
 ];
 
@@ -376,7 +385,7 @@ export function RequestQuoteForm({
           {vendor
             ? `We passed your details to ${vendor.name} and other matching entertainers nearby.`
             : "We passed your details to matching entertainers near you."}{" "}
-          Expect replies by email{form.getValues("phone") ? " or phone" : ""} within a day or two.
+          Expect replies by email or phone within a day or two.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Button variant="outline" onClick={() => { setStatus("idle"); setStep(0); }}>

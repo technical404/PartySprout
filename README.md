@@ -68,8 +68,8 @@ node Database/inspect-xlsx.cjs                                     # peek at the
 src/
   routes/                    52 route files (TanStack Start, file based)
   components/marketplace/    real product UI: marketplace, account-pages, admin-page,
-                             vendor-pages, quote-form, home-sections, static-pages,
-                             footer, pages
+                             admin-console (the /admin tabs), vendor-pages, quote-form,
+                             home-sections, static-pages, footer, pages
   components/ui/             shadcn/Radix primitives
   lib/                       api.ts (typed API client), session.tsx, saved.tsx,
                              marketplace-data.ts, site.ts, error-page.ts
@@ -107,7 +107,11 @@ AGENTS.md                    project note for agents
 ## 4. Features
 
 **Visitors (no account)**
-- Homepage with real counts, featured carousel, popular categories, city browse.
+- Homepage with real counts, featured carousel, popular categories, city browse. The
+  hero's *Where?* box suggests states as well as cities — the state row says how many
+  businesses answer it statewide and is offered first, because a state is the broader
+  answer — and the *When?* box opens its calendar from a click anywhere in the field,
+  not only on the calendar glyph (typing a date still works while it is open).
 - Search with free text, category, city/state, price range, minimum rating, featured
   and sort; the whole filter set lives in the URL — on `/search` through its route, and
   on every category and city landing page through the page's own query string. A
@@ -115,7 +119,12 @@ AGENTS.md                    project note for agents
   filtered list instead of a reset one. Only filters actually set are written, and a
   landing page leaves out the category and city its path already states.
 - Business profile pages at `/vendors/<slug>` with contact details and a quote form.
-- Quote requests can be sent without an account.
+- Quote requests can be sent without an account, from the wizard at `/request-quote` or
+  the dialog on a business page. It asks eleven questions — event type, entertainment,
+  city, date, how many children, their ages, budget, details, name, email and phone —
+  and every one of them is required, so `Next` does not move on until the question on
+  screen is answered. A link that starts the wizard (category, city, date, children)
+  only prefills those answers.
 - Favourites work without an account (localStorage) and are merged into the account on
   login.
 - Party builder: pick city, date, children and a category, see matching businesses and
@@ -132,7 +141,8 @@ AGENTS.md                    project note for agents
 
 **Vendors** (`/list-your-business`, `/vendor/*`)
 - Business submission with name, category, city, website, phone, email, starting price
-  and description. It lands as `pending` and is invisible to the public until approved.
+  and description. Every field is required except the starting price. It lands as
+  `pending` and is invisible to the public until approved.
 - `/vendor/dashboard` shows the listing and its status; `/vendor/profile` edits it;
   edits to a rejected listing put it back in the queue; `/vendor/leads` lists the quote
   requests that came in for that business.
@@ -141,7 +151,18 @@ AGENTS.md                    project note for agents
 - Real counters (listings, pending, rejected, cities, categories, users, vendors,
   quote requests, last 7 days, favourites).
 - Review queue of pending submissions: approve or reject with an optional note.
-- Table of every quote request received.
+- **Listings**: search, filter by status and category, sort six ways, page 25 at a time.
+  Edit any field a vendor can (plus pin rank and featured), flip featured from the row,
+  and delete a listing outright.
+- **Accounts**: the same search/filter/paging over every account. Change a role or
+  suspension straight from the row, edit name and phone, set a new password (which signs
+  that account out everywhere) or delete it. An admin cannot demote, suspend or delete
+  their own account — the last admin cannot lock the panel.
+- **Categories**: rename a category, rewrite its tagline, hide it, and rename the
+  specialty labels its homepage card shows. Slugs never change.
+- **Quote requests**: browse and search every request, and delete one.
+- Every tab exports what it is showing — the whole filtered set, walked a page at a time,
+  not just the rows on screen — as CSV.
 
 ---
 
@@ -186,6 +207,7 @@ Every route exists identically in `Database/api-handler.cjs` (Node) and
 |---|---|---|---|
 | GET | `/api/categories` | — | 10 categories with live listing counts and subcategory labels |
 | GET | `/api/cities?q=` | — | city suggestions with listing counts |
+| GET | `/api/states` | — | the 51 states and DC with listing counts, for the Where suggestions |
 | GET | `/api/directory-summary` | — | listings, cities, categories, pricedListings, minPrice, maxPrice |
 | GET | `/api/listings` | — | search (see §7) |
 | GET | `/api/listings/by-ids?ids=` | — | resolve saved/favourite ids |
@@ -207,7 +229,19 @@ Every route exists identically in `Database/api-handler.cjs` (Node) and
 | GET | `/api/vendor/leads` | vendor | quote requests for the caller's business |
 | GET | `/api/admin/stats` | admin | dashboard counters |
 | GET | `/api/admin/submissions` | admin | pending review queue |
-| GET | `/api/admin/quotes` | admin | every quote request |
+| GET | `/api/admin/listings` | admin | search/filter/sort/page every listing (`q`, `status`, `category`, `featured`, `sort`, `page`, `pageSize` ≤ 100) |
+| GET | `/api/admin/listings/:id` | admin | one listing with the columns the edit form needs |
+| PATCH | `/api/admin/listings/:id` | admin | edit any field, including pin rank and featured |
+| DELETE | `/api/admin/listings/:id` | admin | remove a listing (its quote requests stay, unattached) |
+| GET | `/api/admin/users` | admin | search/filter/page every account (`q`, `role`, `status`) |
+| PATCH | `/api/admin/users/:id` | admin | role, suspension, name, phone |
+| POST | `/api/admin/users/:id/password` | admin | set a new password and end that account's sessions |
+| DELETE | `/api/admin/users/:id` | admin | delete an account and its sessions |
+| GET | `/api/admin/categories` | admin | categories with live and total counts and their labels |
+| PATCH | `/api/admin/categories/:id` | admin | name, tagline, visibility |
+| PATCH | `/api/admin/subcategories/:id` | admin | rename one specialty label |
+| GET | `/api/admin/quotes` | admin | search/page every quote request, with the vendor it went to |
+| DELETE | `/api/admin/quotes/:id` | admin | delete a quote request |
 | POST | `/api/admin/listings/:id/status` | admin | approve / reject, optional note |
 
 Anything else under `/api/` returns JSON 404. In production `.htaccess` sends `/api/*`
@@ -223,7 +257,7 @@ to `api/index.php`; in development the Vite plugin sends `/api/*` to the Node ha
 |---|---|
 | `q` | `name LIKE` OR `description LIKE` |
 | `category` | category **slug**; matches any category the business belongs to, not just its primary one |
-| `location` | city name, free-text city a submission typed, **or** a two-letter state code. Deliberately not the business name — "Dallas Heroes" must not answer a Dallas search by accident |
+| `location` | city name, free-text city a submission typed, **or** a state — its two-letter code, its name, or any whole word of its name once three letters are typed ("carol" is the Carolinas, "ca" is California). Deliberately not the business name — "Dallas Heroes" must not answer a Dallas search by accident |
 | `priceMin` / `priceMax` | only businesses with a published price can match |
 | `ratingMin` | businesses with no rating cannot match |
 | `featured=1` | featured only |
@@ -258,6 +292,14 @@ row of the same brand onto a page.
 
 `pin_rank > 0` still works as a general sponsored placement, and sorts below these pins.
 
+A pinned card shows the business's own logo in its avatar — `icon_url`, hosted by the
+business, not by us — and a picture from the business's own home page in `image_url`, so
+the featured row is the brands themselves rather than stock party photography. Both are
+plain columns: `node .ps_pinned_assets.cjs --apply` writes the three rows locally and
+prints the SQL for production, and it refuses to write a URL that does not answer with an
+image. A card whose logo cannot be hot-linked keeps the initials fallback, and one with
+no usable picture keeps its category image.
+
 ---
 
 ## 8. Accounts, sessions, security
@@ -275,11 +317,12 @@ row of the same brand onto a page.
 - **Server-side validation** runs again on every write: name, email format, password
   length (8–200), price range, guest count, field-length cap, and `safeUrl()` rejects
   anything that is not `http(s)` — a `javascript:` website comes back as a field error.
-  A phone number (an optional field on the quote, sign-up, profile and business forms)
-  accepts digits, spaces, `+`, `-`, `(`, `)`, `.` with at most one leading `+` and 7–15
-  digits; anything else, letters included, is a field error in both runtimes, and the
-  browser drops what a phone number cannot contain as it is typed rather than waiting
-  for the submit. The rule is
+  A phone number is required on the quote wizard and the business forms, and optional on
+  the sign-up and profile forms. It accepts digits, spaces, `+`, `-`, `(`, `)`, `.` with
+  at most one leading `+` and 7–15 digits; anything else, letters included, is a field
+  error in both runtimes, and the browser drops what a phone number cannot contain as it
+  is typed rather than waiting for the submit. A blank one is refused where it is
+  required — "Please enter your phone number." — rather than being stored. The rule is
   defined once in `src/lib/validation.ts` for the browser and mirrored in
   `Database/api-handler.cjs` and `deploy/public/api/index.php`, so the two backends
   answer with the same message.

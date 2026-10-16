@@ -28,6 +28,17 @@ export type City = {
   label: string;
 };
 
+/**
+ * A whole state that has active listings. Searching a state is how a visitor widens a
+ * search past the handful of cities the directory has rows in, so the Where box offers
+ * states beside cities rather than hiding them behind an exact code.
+ */
+export type State = {
+  name: string;
+  code: string;
+  count: number;
+};
+
 export type Vendor = {
   id: number;
   name: string;
@@ -161,7 +172,8 @@ export function searchStateFromParams(raw: Record<string, unknown>): Partial<Sea
   number("ratingMin");
 
   const sort = raw["sort"] == null ? "" : String(raw["sort"]);
-  if (sort) state.sort = (SORTS as readonly string[]).includes(sort) ? (sort as SortKey) : "relevance";
+  if (sort)
+    state.sort = (SORTS as readonly string[]).includes(sort) ? (sort as SortKey) : "relevance";
 
   const page = Number(raw["page"]);
   if (Number.isFinite(page) && page > 1) state.page = Math.floor(page);
@@ -220,7 +232,11 @@ export function mapCategory(row: {
   };
 }
 
-export function mapCity(row: { name: string; state_code?: string | null; listing_count?: number }): City {
+export function mapCity(row: {
+  name: string;
+  state_code?: string | null;
+  listing_count?: number;
+}): City {
   const stateCode = row.state_code || "";
   return {
     name: row.name,
@@ -236,11 +252,11 @@ export function mapCity(row: { name: string; state_code?: string | null; listing
  * edited database from turning into a script-execution vector.
  */
 function safeLogoUrl(value: string | null | undefined): string | null {
-  const raw = String(value ?? '').trim();
+  const raw = String(value ?? "").trim();
   if (!raw) return null;
   try {
     const url = new URL(raw);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
   } catch {
     return null;
   }
@@ -253,7 +269,7 @@ function safeLogoUrl(value: string | null | undefined): string | null {
  */
 function safeImageUrl(value: string | null | undefined): string | null {
   const url = safeLogoUrl(value);
-  return url && url.startsWith('https://') ? url : null;
+  return url && url.startsWith("https://") ? url : null;
 }
 
 export function mapVendor(row: ListingRow): Vendor {
@@ -308,8 +324,32 @@ export async function fetchCategories(params: { location?: string } = {}): Promi
 export async function fetchCities(limit = 12): Promise<City[]> {
   const res = await fetch(`/api/cities?limit=${limit}`, live);
   if (!res.ok) return [];
-  const rows = (await res.json()) as Array<{ name: string; state_code?: string | null; listing_count?: number }>;
+  const rows = (await res.json()) as Array<{
+    name: string;
+    state_code?: string | null;
+    listing_count?: number;
+  }>;
   return rows.map(mapCity);
+}
+
+/**
+ * Every state with active listings, in one request. The reference table holds 50-odd
+ * rows, so the Where box filters this list itself rather than asking the API on each
+ * keystroke.
+ */
+export async function fetchStates(): Promise<State[]> {
+  const res = await fetch("/api/states", live);
+  if (!res.ok) return [];
+  const rows = (await res.json()) as Array<{
+    name: string;
+    code?: string | null;
+    listing_count?: number;
+  }>;
+  return rows.map((row) => ({
+    name: row.name,
+    code: row.code || "",
+    count: Number(row.listing_count || 0),
+  }));
 }
 
 export async function fetchListings(
@@ -323,7 +363,7 @@ export async function fetchListings(
     sort?: string | undefined;
     page?: number | undefined;
     pageSize?: number | undefined;
-  } = {}
+  } = {},
 ) {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
@@ -357,7 +397,11 @@ export async function fetchCitySuggestions(term: string, limit = 8): Promise<Cit
   if (query.length < 2) return [];
   const res = await fetch(`/api/cities?q=${encodeURIComponent(query)}`, live);
   if (!res.ok) return [];
-  const rows = (await res.json()) as Array<{ name: string; state_code?: string | null; listing_count?: number }>;
+  const rows = (await res.json()) as Array<{
+    name: string;
+    state_code?: string | null;
+    listing_count?: number;
+  }>;
   return rows.slice(0, limit).map(mapCity);
 }
 
@@ -377,7 +421,12 @@ export type DirectorySummary = {
  */
 export async function fetchDirectorySummary(): Promise<DirectorySummary> {
   const fallback: DirectorySummary = {
-    listings: 0, cities: 0, categories: 0, pricedListings: 0, minPrice: null, maxPrice: null,
+    listings: 0,
+    cities: 0,
+    categories: 0,
+    pricedListings: 0,
+    minPrice: null,
+    maxPrice: null,
   };
   try {
     const res = await fetch("/api/directory-summary", live);

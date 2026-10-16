@@ -59,6 +59,11 @@ const MAX_FIELD = 2000;
 /** What quote_requests.event_type can hold: VARCHAR(120). */
 const EVENT_TYPE_MAX = 120;
 const EMAIL_PATTERN = '/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/';
+const ADMIN_PAGE_SIZE = 25;
+const ADMIN_MAX_PAGE_SIZE = 100;
+const USER_ROLES = ['parent', 'vendor', 'admin'];
+const USER_STATUSES = ['active', 'suspended'];
+const LISTING_STATUSES = ['active', 'pending', 'rejected'];
 /** PBKDF2-HMAC-SHA256. Node writes the same format, so hashes move either way. */
 const PBKDF2_ITERATIONS = 210000;
 
@@ -500,13 +505,17 @@ function build_filters(array $filters): array
         $params[] = (int) $filters['cityId'];
     }
     if (!empty($filters['city'])) {
-        // The reference city, the free-text city a submission typed, or a state
-        // code. Deliberately not l.name: "Dallas Heroes" is not a Dallas hit.
-        $where[] = '(ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)';
+        // The reference city, the free-text city a submission typed, or the state the
+        // visitor named (the Where box offers state names). Deliberately not l.name:
+        // "Dallas Heroes" is not a Dallas hit.
+        [$stateClause, $stateParams] = state_match_sql('s', (string) $filters['city']);
+        $where[] = "(ci.name LIKE ? OR l.city_text LIKE ? OR $stateClause)";
         $like = '%' . $filters['city'] . '%';
         $params[] = $like;
         $params[] = $like;
-        $params[] = strtoupper((string) $filters['city']);
+        foreach ($stateParams as $param) {
+            $params[] = $param;
+        }
     }
     if (!empty($filters['ownerId'])) {
         $where[] = 'l.submitted_by = ?';
@@ -521,6 +530,24 @@ function build_filters(array $filters): array
 }
 
 /**
+ * How a state answers a location term: its two-letter code, or the start of its name,
+ * or — once the term is three characters or longer — the start of any word in its name
+ * ("carolina" finds both Carolinas, "york" finds New York). A state is deliberately
+ * never matched in the middle of its name: that would answer "ca" with Carolina as well
+ * as California, and the code already says which of those was meant.
+ */
+function state_match_sql(string $stateAlias, string $city): array
+{
+    if (strlen($city) < 3) {
+        return ["($stateAlias.code = ? OR $stateAlias.name LIKE ?)", [strtoupper($city), $city . '%']];
+    }
+    return [
+        "($stateAlias.code = ? OR $stateAlias.name LIKE ? OR $stateAlias.name LIKE ?)",
+        [strtoupper($city), $city . '%', '% ' . $city . '%'],
+    ];
+}
+
+/**
  * The predicate that says which city is being viewed, written against whichever aliases
  * the caller has: the filter itself, the pins, and the sibling lookup each need it.
  * Returns a null clause when no city was asked for.
@@ -532,7 +559,11 @@ function city_match_sql(string $cityAlias, string $listingAlias, string $stateAl
 
     if ($city !== '') {
         $like = '%' . $city . '%';
-        return ["($cityAlias.name LIKE ? OR $listingAlias.city_text LIKE ? OR $stateAlias.code = ?)", [$like, $like, strtoupper($city)]];
+        [$stateClause, $stateParams] = state_match_sql($stateAlias, $city);
+        return [
+            "($cityAlias.name LIKE ? OR $listingAlias.city_text LIKE ? OR $stateClause)",
+            array_merge([$like, $like], $stateParams),
+        ];
     }
     if ($cityId > 0) {
         return ["$listingAlias.city_id = ?", [$cityId]];
@@ -960,12 +991,16 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
         }
 
         $website = safe_url($body['website'] ?? '');
-        if (text($body['website'] ?? '') !== '' && $website === null) {
+        if (text($body['website'] ?? '') === '') {
+            $errors['website'] = 'Enter your website address.';
+        } elseif ($website === null) {
             $errors['website'] = 'Enter a full web address, like https://example.com.';
         }
 
         $email = text($body['email'] ?? '');
-        if ($email !== '' && !preg_match(EMAIL_PATTERN, $email)) {
+        if ($email === '') {
+            $errors['email'] = 'Please enter a booking email.';
+        } elseif (!preg_match(EMAIL_PATTERN, $email)) {
             $errors['email'] = 'Enter a valid email address.';
         }
 
@@ -974,13 +1009,23 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
             $errors['priceFrom'] = 'Enter a price in dollars, or leave it blank.';
         }
 
-        $phoneProblem = phone_error($body['phone'] ?? '');
-        if ($phoneProblem !== null) {
-            $errors['phone'] = $phoneProblem;
+        // Every field reaches the review queue filled in except the starting
+        // price: a listing an admin has to chase for contact details is a
+        // listing that never goes live.
+        $phone = text($body['phone'] ?? '');
+        if ($phone === '') {
+            $errors['phone'] = 'Please enter a phone number.';
+        } else {
+            $phoneProblem = phone_error($phone);
+            if ($phoneProblem !== null) {
+                $errors['phone'] = $phoneProblem;
+            }
         }
 
         $description = text($body['description'] ?? '');
-        if (strlen($description) > 5000) {
+        if ($description === '') {
+            $errors['description'] = 'Tell us what you offer.';
+        } elseif (strlen($description) > 5000) {
             $errors['description'] = 'Description is too long. Try a shorter summary.';
         }
 
@@ -1065,20 +1110,35 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
             $errors['name'] = 'Please enter the business name.';
         }
         $website = safe_url($body['website'] ?? '');
-        if (text($body['website'] ?? '') !== '' && $website === null) {
+        if (text($body['website'] ?? '') === '') {
+            $errors['website'] = 'Enter your website address.';
+        } elseif ($website === null) {
             $errors['website'] = 'Enter a full web address, like https://example.com.';
         }
         $email = text($body['email'] ?? '');
-        if ($email !== '' && !preg_match(EMAIL_PATTERN, $email)) {
+        if ($email === '') {
+            $errors['email'] = 'Please enter a booking email.';
+        } elseif (!preg_match(EMAIL_PATTERN, $email)) {
             $errors['email'] = 'Enter a valid email address.';
         }
         $priceFrom = to_price($body['priceFrom'] ?? null);
         if ($priceFrom === false) {
             $errors['priceFrom'] = 'Enter a price in dollars, or leave it blank.';
         }
-        $phoneProblem = phone_error($body['phone'] ?? '');
-        if ($phoneProblem !== null) {
-            $errors['phone'] = $phoneProblem;
+        $phone = text($body['phone'] ?? '');
+        if ($phone === '') {
+            $errors['phone'] = 'Please enter a phone number.';
+        } else {
+            $phoneProblem = phone_error($phone);
+            if ($phoneProblem !== null) {
+                $errors['phone'] = $phoneProblem;
+            }
+        }
+        $description = text($body['description'] ?? '');
+        if ($description === '') {
+            $errors['description'] = 'Tell us what you offer.';
+        } elseif (strlen($description) > 5000) {
+            $errors['description'] = 'Description is too long. Try a shorter summary.';
         }
         if ($errors !== []) {
             send(422, ['error' => 'Validation failed', 'fields' => $errors]);
@@ -1117,6 +1177,261 @@ function handle_vendor(mysqli $db, string $method, string $path): bool
     }
 
     return false;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Admin console                                                              */
+/* ------------------------------------------------------------------------- */
+
+/** Shared by every admin list endpoint so page and pageSize can never be nonsense. */
+function admin_paging($page, $pageSize, int $fallback = ADMIN_PAGE_SIZE): array
+{
+    $size = (int) ($pageSize ?? 0);
+    if ($size < 1) {
+        $size = $fallback;
+    }
+    $size = min($size, ADMIN_MAX_PAGE_SIZE);
+    $current = max(1, (int) ($page ?? 0));
+    return ['page' => $current, 'pageSize' => $size, 'offset' => ($current - 1) * $size];
+}
+
+/**
+ * The admin tables and the edit form need the foreign keys and the moderation
+ * columns too, which select_listings() deliberately leaves out.
+ */
+function select_admin_listings(mysqli $db, string $whereSql, array $params, string $order = 'l.name', ?int $limit = null, int $offset = 0): array
+{
+    $paged = $limit === null ? '' : ' LIMIT ? OFFSET ?';
+    $args = $limit === null ? $params : array_merge($params, [$limit, $offset]);
+    $rows = fetch_all(
+        $db,
+        "SELECT l.id, l.name, l.slug, l.description, l.policies, l.website, l.icon_url, l.image_url,
+                l.phone, l.email, l.price_from, l.rating, l.review_count, l.is_featured, l.pin_rank,
+                l.status, l.review_note, l.submitted_by, l.created_at,
+                l.category_id, l.country_id, l.state_id, l.city_id, l.city_text,
+                c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
+                COALESCE(ci.name, l.city_text) AS city_name,
+                CASE WHEN ci.id IS NULL THEN NULL ELSE s.code END AS state_code,
+                co.code AS country_code
+           FROM listings l
+           JOIN categories c ON c.id = l.category_id
+           JOIN countries  co ON co.id = l.country_id
+           LEFT JOIN cities ci ON ci.id = l.city_id
+           LEFT JOIN states s  ON s.id  = l.state_id
+          WHERE $whereSql
+          ORDER BY $order$paged",
+        $args
+    );
+    return array_map('shape_admin_listing', $rows);
+}
+
+function shape_admin_listing(array $row): array
+{
+    $row['id'] = (int) $row['id'];
+    $row['is_featured'] = (int) $row['is_featured'];
+    $row['pin_rank'] = (int) $row['pin_rank'];
+    $row['price_from'] = $row['price_from'] === null ? null : (float) $row['price_from'];
+    $row['rating'] = $row['rating'] === null ? null : (float) $row['rating'];
+    $row['review_count'] = $row['review_count'] === null ? null : (int) $row['review_count'];
+    foreach (['submitted_by', 'category_id', 'country_id', 'state_id', 'city_id'] as $key) {
+        $row[$key] = $row[$key] === null ? null : (int) $row[$key];
+    }
+    return $row;
+}
+
+/** Free-text and dropdown filters for the admin listings table. */
+function build_admin_listing_filters(array $filters): array
+{
+    $where = [];
+    $params = [];
+
+    if (in_array($filters['status'] ?? '', LISTING_STATUSES, true)) {
+        $where[] = 'l.status = ?';
+        $params[] = $filters['status'];
+    }
+    if (($filters['featured'] ?? '') === '1') {
+        $where[] = 'l.is_featured = 1';
+    }
+    if (($filters['category'] ?? '') !== '') {
+        $where[] = 'l.category_id = (SELECT id FROM categories WHERE slug = ?)';
+        $params[] = $filters['category'];
+    }
+    $term = text($filters['q'] ?? '');
+    if ($term !== '') {
+        $where[] = '(l.name LIKE ? OR l.website LIKE ? OR l.email LIKE ? OR l.slug LIKE ?)';
+        $like = '%' . $term . '%';
+        array_push($params, $like, $like, $like, $like);
+    }
+
+    return ['clause' => $where === [] ? '1 = 1' : implode(' AND ', $where), 'params' => $params];
+}
+
+function admin_list_listings(mysqli $db, array $filters, array $paging): array
+{
+    $built = build_admin_listing_filters($filters);
+    $page = admin_paging($paging['page'] ?? null, $paging['pageSize'] ?? null);
+    $sorts = [
+        'newest' => 'l.created_at DESC, l.id DESC',
+        'name' => 'l.name',
+        'price_asc' => 'l.price_from IS NULL, l.price_from ASC, l.name',
+        'price_desc' => 'l.price_from IS NULL, l.price_from DESC, l.name',
+        'rating' => 'l.rating IS NULL, l.rating DESC, l.name',
+        'featured' => 'l.is_featured DESC, l.pin_rank DESC, l.name',
+    ];
+    $order = $sorts[$filters['sort'] ?? ''] ?? $sorts['newest'];
+    $total = (int) (fetch_value($db, 'SELECT COUNT(*) FROM listings l WHERE ' . $built['clause'], $built['params']) ?? 0);
+    $items = select_admin_listings($db, $built['clause'], $built['params'], $order, $page['pageSize'], $page['offset']);
+    return ['items' => $items, 'total' => $total, 'page' => $page['page'], 'pageSize' => $page['pageSize']];
+}
+
+/** Free-text city to a reference row, so an edit keeps state search working. */
+function find_city_by_name(mysqli $db, string $name): ?array
+{
+    $clean = text($name);
+    if ($clean === '') {
+        return null;
+    }
+    return fetch_one(
+        $db,
+        'SELECT ci.id, ci.name, ci.state_id, s.code AS state_code
+           FROM cities ci
+           JOIN states s ON s.id = ci.state_id
+          WHERE LOWER(ci.name) = LOWER(?)
+          ORDER BY ci.id
+          LIMIT 1',
+        [$clean]
+    );
+}
+
+function admin_list_users(mysqli $db, array $filters, array $paging): array
+{
+    $where = [];
+    $params = [];
+
+    if (in_array($filters['role'] ?? '', USER_ROLES, true)) {
+        $where[] = 'u.role = ?';
+        $params[] = $filters['role'];
+    }
+    if (in_array($filters['status'] ?? '', USER_STATUSES, true)) {
+        $where[] = 'u.status = ?';
+        $params[] = $filters['status'];
+    }
+    $term = text($filters['q'] ?? '');
+    if ($term !== '') {
+        $where[] = '(u.email LIKE ? OR u.name LIKE ?)';
+        $like = '%' . $term . '%';
+        array_push($params, $like, $like);
+    }
+
+    $clause = $where === [] ? '1 = 1' : implode(' AND ', $where);
+    $page = admin_paging($paging['page'] ?? null, $paging['pageSize'] ?? null);
+    $total = (int) (fetch_value($db, 'SELECT COUNT(*) FROM users u WHERE ' . $clause, $params) ?? 0);
+    $rows = fetch_all(
+        $db,
+        "SELECT u.id, u.email, u.name, u.phone, u.role, u.status, u.listing_id, u.created_at,
+                l.name AS listing_name, l.slug AS listing_slug
+           FROM users u
+           LEFT JOIN listings l ON l.id = u.listing_id
+          WHERE $clause
+          ORDER BY u.created_at DESC, u.id DESC
+          LIMIT ? OFFSET ?",
+        array_merge($params, [$page['pageSize'], $page['offset']])
+    );
+    foreach ($rows as &$row) {
+        $row['id'] = (int) $row['id'];
+        $row['listing_id'] = $row['listing_id'] === null ? null : (int) $row['listing_id'];
+    }
+    unset($row);
+
+    return ['items' => $rows, 'total' => $total, 'page' => $page['page'], 'pageSize' => $page['pageSize']];
+}
+
+function admin_list_categories(mysqli $db): array
+{
+    $categories = fetch_all(
+        $db,
+        "SELECT c.id, c.slug, c.name, c.tagline, c.icon, c.sort_order, c.is_active,
+                (SELECT COUNT(*) FROM listings l WHERE l.category_id = c.id) AS listing_count,
+                (SELECT COUNT(*) FROM listings l WHERE l.category_id = c.id AND l.status = 'active') AS active_count
+           FROM categories c
+          ORDER BY c.sort_order, c.name"
+    );
+
+    $byCategory = [];
+    foreach (
+        fetch_all(
+            $db,
+            'SELECT id, category_id, slug, name, sort_order FROM subcategories ORDER BY category_id, sort_order, id'
+        ) as $row
+    ) {
+        $row['id'] = (int) $row['id'];
+        $row['category_id'] = (int) $row['category_id'];
+        $row['sort_order'] = (int) $row['sort_order'];
+        $byCategory[(int) $row['category_id']][] = $row;
+    }
+
+    $out = [];
+    foreach ($categories as $category) {
+        $category['id'] = (int) $category['id'];
+        $category['sort_order'] = (int) $category['sort_order'];
+        $category['is_active'] = (int) $category['is_active'];
+        $category['listing_count'] = (int) $category['listing_count'];
+        $category['active_count'] = (int) $category['active_count'];
+        $category['subcategories'] = $byCategory[(int) $category['id']] ?? [];
+        $out[] = $category;
+    }
+    return $out;
+}
+
+function admin_list_quote_requests(mysqli $db, string $term, array $paging): array
+{
+    $where = [];
+    $params = [];
+    $term = text($term);
+    if ($term !== '') {
+        $where[] = '(qt.name LIKE ? OR qt.email LIKE ? OR qt.city LIKE ?)';
+        $like = '%' . $term . '%';
+        array_push($params, $like, $like, $like);
+    }
+
+    $clause = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
+    $page = admin_paging($paging['page'] ?? null, $paging['pageSize'] ?? null);
+    $total = (int) (fetch_value($db, 'SELECT COUNT(*) FROM quote_requests qt' . $clause, $params) ?? 0);
+    $rows = fetch_all(
+        $db,
+        "SELECT qt.*, l.name AS vendor_name
+           FROM quote_requests qt
+           LEFT JOIN listings l ON l.id = qt.vendor_id
+           $clause
+          ORDER BY qt.created_at DESC, qt.id DESC
+          LIMIT ? OFFSET ?",
+        array_merge($params, [$page['pageSize'], $page['offset']])
+    );
+    foreach ($rows as &$row) {
+        $row['id'] = (int) $row['id'];
+        foreach (['vendor_id', 'user_id'] as $key) {
+            $row[$key] = $row[$key] === null ? null : (int) $row[$key];
+        }
+    }
+    unset($row);
+
+    return ['items' => $rows, 'total' => $total, 'page' => $page['page'], 'pageSize' => $page['pageSize']];
+}
+
+/** The user row shape the admin panel edits, matching getUserById() in queries.js. */
+function admin_user_by_id(mysqli $db, int $id): ?array
+{
+    $user = fetch_one(
+        $db,
+        'SELECT id, email, name, phone, role, listing_id, status, created_at FROM users WHERE id = ?',
+        [$id]
+    );
+    if ($user === null) {
+        return null;
+    }
+    $user['id'] = (int) $user['id'];
+    $user['listing_id'] = $user['listing_id'] === null ? null : (int) $user['listing_id'];
+    return $user;
 }
 
 function handle_admin(mysqli $db, string $method, string $path): bool
@@ -1158,16 +1473,155 @@ function handle_admin(mysqli $db, string $method, string $path): bool
         send(200, ['items' => select_listings($db, 'l.status = ?', [$status], 'l.created_at, l.id')]);
     }
 
-    if ($method === 'GET' && $path === '/api/admin/quotes') {
-        $rows = fetch_all(
+    /* --- listings ------------------------------------------------------- */
+
+    if ($method === 'GET' && $path === '/api/admin/listings') {
+        send(200, admin_list_listings($db, [
+            'q' => $_GET['q'] ?? '',
+            'status' => $_GET['status'] ?? '',
+            'category' => $_GET['category'] ?? '',
+            'featured' => $_GET['featured'] ?? '',
+            'sort' => $_GET['sort'] ?? '',
+        ], ['page' => $_GET['page'] ?? null, 'pageSize' => $_GET['pageSize'] ?? null]));
+    }
+
+    if ($method === 'GET' && preg_match('#^/api/admin/listings/(\d+)$#', $path, $m) === 1) {
+        $listing = listing_by_id($db, (int) $m[1]);
+        if ($listing === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        send(200, ['listing' => $listing]);
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/admin/listings/(\d+)$#', $path, $m) === 1) {
+        $listing = listing_by_id($db, (int) $m[1]);
+        if ($listing === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        $body = read_json_body();
+
+        $errors = [];
+        $name = text($body['name'] ?? '');
+        if (strlen($name) < 2) {
+            $errors['name'] = 'Please enter the business name.';
+        } elseif (strlen($name) > 200) {
+            $errors['name'] = 'Business name is too long.';
+        }
+
+        $category = category_by_slug($db, text($body['categorySlug'] ?? ''));
+        if ($category === null) {
+            $errors['categorySlug'] = 'Pick the category that fits best.';
+        }
+
+        $status = text($body['status'] ?? '');
+        if (!in_array($status, LISTING_STATUSES, true)) {
+            $errors['status'] = 'Status must be active, rejected or pending.';
+        }
+
+        // Unlike a vendor's own edit, an admin may clear a field: a blank website
+        // is stored as no website, but a broken one is still refused.
+        $websiteText = text($body['website'] ?? '');
+        $website = $websiteText === '' ? null : safe_url($websiteText);
+        if ($websiteText !== '' && $website === null) {
+            $errors['website'] = 'Enter a full web address, like https://example.com.';
+        }
+
+        $email = text($body['email'] ?? '');
+        if ($email !== '' && !preg_match(EMAIL_PATTERN, $email)) {
+            $errors['email'] = 'Enter a valid email address.';
+        } elseif (strlen($email) > MAX_FIELD) {
+            $errors['email'] = 'Email is too long.';
+        }
+
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
+
+        $priceFrom = to_price($body['priceFrom'] ?? null);
+        if ($priceFrom === false) {
+            $errors['priceFrom'] = 'Enter a price in dollars, or leave it blank.';
+        }
+
+        $description = text($body['description'] ?? '');
+        if (strlen($description) > 5000) {
+            $errors['description'] = 'Description is too long. Try a shorter summary.';
+        }
+        $policies = text($body['policies'] ?? '');
+        if (strlen($policies) > 5000) {
+            $errors['policies'] = 'Policies are too long.';
+        }
+        if (strlen(text($body['reviewNote'] ?? '')) > 1000) {
+            $errors['reviewNote'] = 'Reviewer note is too long.';
+        }
+
+        // Only a JSON number or a run of digits counts: "true", "2.5" and "abc" are
+        // all refused rather than silently becoming 1 or 2.
+        $rawPin = $body['pinRank'] ?? null;
+        if ($rawPin === null || $rawPin === '') {
+            $pinRank = 0;
+        } elseif (is_int($rawPin)) {
+            $pinRank = $rawPin;
+        } elseif (is_float($rawPin) && floor($rawPin) === $rawPin) {
+            $pinRank = (int) $rawPin;
+        } elseif (is_string($rawPin) && preg_match('/^\d+$/', trim($rawPin)) === 1) {
+            $pinRank = (int) trim($rawPin);
+        } else {
+            $pinRank = -1;
+        }
+        if ($pinRank < 0 || $pinRank > 1000) {
+            $errors['pinRank'] = 'Pin rank must be a whole number between 0 and 1000.';
+        }
+
+        if ($errors !== []) {
+            send(422, ['error' => 'Validation failed', 'fields' => $errors]);
+        }
+
+        // A typed city that matches a reference row is stored as that row, so a
+        // state search still finds the business; anything else stays free text.
+        $typedCity = text($body['cityText'] ?? '');
+        $matchedCity = $typedCity === '' ? null : find_city_by_name($db, $typedCity);
+        $isFeatured = ($body['isFeatured'] ?? null) === true
+            || ($body['isFeatured'] ?? null) === 1
+            || ($body['isFeatured'] ?? null) === '1';
+
+        $listingId = (int) $listing['id'];
+        run_write(
             $db,
-            'SELECT q.*, l.name AS vendor_name
-               FROM quote_requests q
-               LEFT JOIN listings l ON l.id = q.vendor_id
-              ORDER BY q.created_at DESC, q.id DESC
-              LIMIT 50'
+            'UPDATE listings
+                SET name = ?, category_id = ?, city_id = ?, state_id = ?, city_text = ?,
+                    website = ?, phone = ?, email = ?, price_from = ?, description = ?, policies = ?,
+                    is_featured = ?, pin_rank = ?, status = ?, review_note = ?
+              WHERE id = ?',
+            [
+                $name,
+                (int) $category['id'],
+                $matchedCity === null ? null : (int) $matchedCity['id'],
+                $matchedCity === null ? null : (int) $matchedCity['state_id'],
+                $matchedCity === null ? nullable_text($typedCity) : null,
+                $website,
+                phone_or_null($body['phone'] ?? ''),
+                $email === '' ? null : $email,
+                $priceFrom === null ? null : $priceFrom,
+                nullable_text($description),
+                nullable_text($policies),
+                $isFeatured ? 1 : 0,
+                $pinRank,
+                $status,
+                nullable_text($body['reviewNote'] ?? ''),
+                $listingId,
+            ]
         );
-        send(200, ['items' => $rows]);
+        add_listing_category($db, $listingId, (int) $category['id']);
+        send(200, ['listing' => listing_by_id($db, $listingId)]);
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/admin/listings/(\d+)$#', $path, $m) === 1) {
+        if (listing_by_id($db, (int) $m[1]) === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        run_write($db, 'DELETE FROM listings WHERE id = ?', [(int) $m[1]]);
+        send(200, ['deleted' => true]);
     }
 
     if ($method === 'POST' && preg_match('#^/api/admin/listings/(\d+)/status$#', $path, $m) === 1) {
@@ -1177,12 +1631,184 @@ function handle_admin(mysqli $db, string $method, string $path): bool
         }
         $body = read_json_body();
         $status = text($body['status'] ?? '');
-        if (!in_array($status, ['active', 'rejected', 'pending'], true)) {
+        if (!in_array($status, LISTING_STATUSES, true)) {
             send(422, ['error' => 'Status must be active, rejected or pending.']);
         }
         $listingId = (int) $listing['id'];
         run_write($db, 'UPDATE listings SET status = ?, review_note = ? WHERE id = ?', [$status, nullable_text($body['note'] ?? ''), $listingId]);
         send(200, ['listing' => ['id' => $listingId, 'name' => $listing['name'], 'status' => $status]]);
+    }
+
+    /* --- accounts ------------------------------------------------------- */
+
+    if ($method === 'GET' && $path === '/api/admin/users') {
+        send(200, admin_list_users($db, [
+            'q' => $_GET['q'] ?? '',
+            'role' => $_GET['role'] ?? '',
+            'status' => $_GET['status'] ?? '',
+        ], ['page' => $_GET['page'] ?? null, 'pageSize' => $_GET['pageSize'] ?? null]));
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/admin/users/(\d+)/password$#', $path, $m) === 1) {
+        $target = admin_user_by_id($db, (int) $m[1]);
+        if ($target === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        $body = read_json_body();
+        $password = (string) ($body['password'] ?? '');
+        if (strlen($password) < 8) {
+            send(422, ['error' => 'Validation failed', 'fields' => ['password' => 'Use at least 8 characters.']]);
+        }
+        if (strlen($password) > 200) {
+            send(422, ['error' => 'Validation failed', 'fields' => ['password' => 'Password is too long.']]);
+        }
+
+        run_write($db, 'UPDATE users SET password_hash = ? WHERE id = ?', [hash_password($password), (int) $target['id']]);
+        run_write($db, 'DELETE FROM sessions WHERE user_id = ?', [(int) $target['id']]);
+        send(200, ['ok' => true]);
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/admin/users/(\d+)$#', $path, $m) === 1) {
+        $target = admin_user_by_id($db, (int) $m[1]);
+        if ($target === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        $body = read_json_body();
+
+        $errors = [];
+        $name = text($body['name'] ?? '');
+        if (strlen($name) < 2) {
+            $errors['name'] = 'Please enter a name.';
+        } elseif (strlen($name) > 200) {
+            $errors['name'] = 'Name is too long.';
+        }
+        $role = text($body['role'] ?? '');
+        if (!in_array($role, USER_ROLES, true)) {
+            $errors['role'] = 'Role must be parent, vendor or admin.';
+        }
+        $status = text($body['status'] ?? '');
+        if (!in_array($status, USER_STATUSES, true)) {
+            $errors['status'] = 'Status must be active or suspended.';
+        }
+        $phoneProblem = phone_error($body['phone'] ?? '');
+        if ($phoneProblem !== null) {
+            $errors['phone'] = $phoneProblem;
+        }
+        if ($errors !== []) {
+            send(422, ['error' => 'Validation failed', 'fields' => $errors]);
+        }
+
+        // An admin must not be able to lock themselves out of the panel.
+        if ((int) $target['id'] === (int) $user['id'] && ($role !== 'admin' || $status !== 'active')) {
+            send(422, ['error' => 'You cannot remove your own admin access.']);
+        }
+
+        run_write(
+            $db,
+            'UPDATE users SET name = ?, phone = ?, role = ?, status = ? WHERE id = ?',
+            [$name, phone_or_null($body['phone'] ?? ''), $role, $status, (int) $target['id']]
+        );
+        // A suspended account keeps no live session.
+        if ($status !== 'active') {
+            run_write($db, 'DELETE FROM sessions WHERE user_id = ?', [(int) $target['id']]);
+        }
+        send(200, ['user' => admin_user_by_id($db, (int) $target['id'])]);
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/admin/users/(\d+)$#', $path, $m) === 1) {
+        $target = admin_user_by_id($db, (int) $m[1]);
+        if ($target === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        if ((int) $target['id'] === (int) $user['id']) {
+            send(422, ['error' => 'You cannot delete your own account.']);
+        }
+
+        $targetId = (int) $target['id'];
+        // SQLite nulls these through foreign keys and MySQL does not, so they are
+        // cleared by hand to keep the two backends behaving identically.
+        run_write($db, 'UPDATE listings SET submitted_by = NULL WHERE submitted_by = ?', [$targetId]);
+        run_write($db, 'UPDATE quote_requests SET user_id = NULL WHERE user_id = ?', [$targetId]);
+        run_write($db, 'DELETE FROM users WHERE id = ?', [$targetId]);
+        send(200, ['deleted' => true]);
+    }
+
+    /* --- categories ----------------------------------------------------- */
+
+    if ($method === 'GET' && $path === '/api/admin/categories') {
+        send(200, ['items' => admin_list_categories($db)]);
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/admin/categories/(\d+)$#', $path, $m) === 1) {
+        $body = read_json_body();
+        $errors = [];
+        $name = text($body['name'] ?? '');
+        if (strlen($name) < 2) {
+            $errors['name'] = 'Please enter a category name.';
+        } elseif (strlen($name) > 100) {
+            $errors['name'] = 'Category name is too long.';
+        }
+        if (strlen(text($body['tagline'] ?? '')) > 300) {
+            $errors['tagline'] = 'Tagline is too long.';
+        }
+        if ($errors !== []) {
+            send(422, ['error' => 'Validation failed', 'fields' => $errors]);
+        }
+
+        $categoryId = (int) $m[1];
+        if (fetch_one($db, 'SELECT id FROM categories WHERE id = ?', [$categoryId]) === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        run_write(
+            $db,
+            'UPDATE categories SET name = ?, tagline = ?, is_active = ? WHERE id = ?',
+            [$name, nullable_text($body['tagline'] ?? ''), ($body['isActive'] ?? true) === false ? 0 : 1, $categoryId]
+        );
+        $updated = fetch_one($db, 'SELECT id, slug, name, tagline, icon, sort_order, is_active FROM categories WHERE id = ?', [$categoryId]);
+        $updated['id'] = (int) $updated['id'];
+        $updated['sort_order'] = (int) $updated['sort_order'];
+        $updated['is_active'] = (int) $updated['is_active'];
+        send(200, ['category' => $updated]);
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/admin/subcategories/(\d+)$#', $path, $m) === 1) {
+        $body = read_json_body();
+        $name = text($body['name'] ?? '');
+        if (strlen($name) < 2) {
+            send(422, ['error' => 'Validation failed', 'fields' => ['name' => 'Please enter a label.']]);
+        }
+        if (strlen($name) > 100) {
+            send(422, ['error' => 'Validation failed', 'fields' => ['name' => 'Label is too long.']]);
+        }
+
+        $subcategoryId = (int) $m[1];
+        if (fetch_one($db, 'SELECT id FROM subcategories WHERE id = ?', [$subcategoryId]) === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        run_write($db, 'UPDATE subcategories SET name = ? WHERE id = ?', [$name, $subcategoryId]);
+        $updated = fetch_one($db, 'SELECT id, category_id, slug, name, sort_order FROM subcategories WHERE id = ?', [$subcategoryId]);
+        $updated['id'] = (int) $updated['id'];
+        $updated['category_id'] = (int) $updated['category_id'];
+        $updated['sort_order'] = (int) $updated['sort_order'];
+        send(200, ['subcategory' => $updated]);
+    }
+
+    /* --- quote requests ------------------------------------------------- */
+
+    if ($method === 'GET' && $path === '/api/admin/quotes') {
+        send(200, admin_list_quote_requests($db, $_GET['q'] ?? '', [
+            'page' => $_GET['page'] ?? null,
+            'pageSize' => $_GET['pageSize'] ?? null,
+        ]));
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/admin/quotes/(\d+)$#', $path, $m) === 1) {
+        $quoteId = (int) $m[1];
+        if (fetch_one($db, 'SELECT id FROM quote_requests WHERE id = ?', [$quoteId]) === null) {
+            send(404, ['error' => 'Not found']);
+        }
+        run_write($db, 'DELETE FROM quote_requests WHERE id = ?', [$quoteId]);
+        send(200, ['deleted' => true]);
     }
 
     return false;
@@ -1249,9 +1875,30 @@ try {
                 $errors[$field] = 'Value is too long.';
             }
         }
-        $phoneProblem = phone_error($body['phone'] ?? '');
-        if ($phoneProblem !== null) {
-            $errors['phone'] = $phoneProblem;
+        // Every question the wizard asks has to be answered before the request
+        // is accepted: one an entertainer cannot act on costs everyone a round
+        // trip. The browser checks these first; this is the real gate.
+        foreach ([
+            'city' => 'Which city is the party in?',
+            'eventDate' => 'Please pick the date of the party.',
+            'guestCount' => 'How many children are you expecting?',
+            'childAge' => 'How old are the children?',
+            'eventType' => 'Pick the type of event you are planning.',
+            'categorySlug' => 'Pick the entertainment you are after.',
+            'budget' => 'Please pick an approximate budget.',
+        ] as $field => $message) {
+            if (text($body[$field] ?? '') === '') {
+                $errors[$field] = $message;
+            }
+        }
+        $phone = text($body['phone'] ?? '');
+        if ($phone === '') {
+            $errors['phone'] = 'Please enter your phone number.';
+        } else {
+            $phoneProblem = phone_error($phone);
+            if ($phoneProblem !== null) {
+                $errors['phone'] = $phoneProblem;
+            }
         }
         // A children count is free text, but a number is the only useful answer.
         $guests = text($body['guestCount'] ?? '');
@@ -1263,7 +1910,10 @@ try {
         if (strlen(text($body['eventType'] ?? '')) > EVENT_TYPE_MAX) {
             $errors['eventType'] = 'Value is too long.';
         }
-        if (strlen(text($body['details'] ?? '')) > 10000) {
+        $details = text($body['details'] ?? '');
+        if (strlen($details) < 10) {
+            $errors['details'] = 'Tell us a bit more — at least 10 characters.';
+        } elseif (strlen($details) > 10000) {
             $errors['details'] = 'Message is too long.';
         }
         if ($errors !== []) {
@@ -1332,9 +1982,12 @@ try {
         $cityClause = '';
         $countParams = [];
         if ($location !== '') {
-            $cityClause = ' AND (ci.name LIKE ? OR l.city_text LIKE ? OR s.code = ?)';
+            // A whole state is a valid answer to "Where?" too, so the counts answer
+            // both a state code and a state name.
+            [$stateClause, $stateParams] = state_match_sql('s', $location);
+            $cityClause = " AND (ci.name LIKE ? OR l.city_text LIKE ? OR $stateClause)";
             $like = '%' . $location . '%';
-            $countParams = [$like, $like, strtoupper($location)];
+            $countParams = array_merge([$like, $like], $stateParams);
         }
         $subs = [];
         foreach (fetch_all(
@@ -1429,6 +2082,24 @@ try {
         }
         send(200, array_map(static function (array $row): array {
             $row['id'] = (int) $row['id'];
+            $row['listing_count'] = (int) $row['listing_count'];
+            return $row;
+        }, $rows));
+    }
+
+    // The whole list is 50-odd rows, so it is sent in one go and the Where box filters
+    // it locally instead of asking again on every keystroke.
+    if ($method === 'GET' && $path === '/api/states') {
+        $rows = fetch_all(
+            $db,
+            'SELECT s.code, s.name, COUNT(*) AS listing_count
+               FROM listings l
+               JOIN states s ON s.id = l.state_id
+              WHERE l.status = \'active\'
+              GROUP BY s.id, s.code, s.name
+              ORDER BY listing_count DESC, s.name'
+        );
+        send(200, array_map(static function (array $row): array {
             $row['listing_count'] = (int) $row['listing_count'];
             return $row;
         }, $rows));

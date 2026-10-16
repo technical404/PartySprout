@@ -1,19 +1,63 @@
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
-import { BadgeCheck, Building2, CalendarDays, Compass, Filter, Heart, Home, MapPin, Menu, MessageCircle, Phone, Search, ShieldCheck, SlidersHorizontal, Star, UserRound, Users, X } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  CalendarDays,
+  Compass,
+  Filter,
+  Heart,
+  Home,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Phone,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Star,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CONTROL_CLASS } from "@/components/ui/control";
 import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
 import {
-  EMPTY_SEARCH, fetchCategories, fetchCitySuggestions, fetchDirectorySummary, fetchListings,
-  searchStateFromParams, searchStateToParams,
-  type Category, type City, type DirectorySummary, type SearchState, type SortKey, type Vendor,
+  EMPTY_SEARCH,
+  fetchCategories,
+  fetchCitySuggestions,
+  fetchDirectorySummary,
+  fetchListings,
+  fetchStates,
+  searchStateFromParams,
+  searchStateToParams,
+  type Category,
+  type City,
+  type DirectorySummary,
+  type SearchState,
+  type SortKey,
+  type State,
+  type Vendor,
 } from "@/lib/marketplace-data";
 import { useSaved } from "@/lib/saved";
 import { useSession } from "@/lib/session";
@@ -32,75 +76,165 @@ export function SiteHeader() {
   const firstName = user?.name?.split(" ")[0] ?? "";
   const closeAndLogout = () => void logout();
 
-  return <>
-    <header className="sticky top-0 z-40 flex h-18 items-center border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      {/* The row is a fixed 72px and the results search bar sticks at lg:top-18 to
+  return (
+    <>
+      <header className="sticky top-0 z-40 flex h-18 items-center border-b border-border/70 bg-background/90 backdrop-blur-xl">
+        {/* The row is a fixed 72px and the results search bar sticks at lg:top-18 to
           sit exactly under it. The height lives on the header, whose border is
           inside those 72px, so the stuck bar is flush rather than a pixel out.
           Keep the two numbers in step. */}
-      <div className="relative mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Brand />
-        {/* Below sm the row has no space for the full CTA set, so the handset and
+        <div className="relative mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+          <Brand />
+          {/* Below sm the row has no space for the full CTA set, so the handset and
             the two words carry the same link in the middle of the header. It is
             centred on the row rather than left in a justify-between gap, so it sits
             in the same place whatever the logo and the menu button measure. The
             number is left to the wider breakpoints, where there is room for it, and
             the accessible name is still the whole phrase. */}
-        <span className="absolute left-1/2 -translate-x-1/2 sm:hidden">
-          <Button asChild className="call-button h-auto px-3 py-2 text-sm font-bold"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" />Call us</a></Button>
-        </span>
-        <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
-          <Link to="/explore" className="nav-link">Explore</Link>
-          <Link to="/search" search={{ q: "", location: "" }} className="nav-link">Categories</Link>
-          <Link to="/request-quote" className="nav-link">Request a quote</Link>
-        </nav>
-        <div className="hidden items-center gap-2 sm:flex">
-          {user ? <>
-            <Button variant="ghost" asChild><Link to={workspace}>Hi, {firstName}</Link></Button>
-            <Button variant="ghost" onClick={closeAndLogout}>Log out</Button>
-          </> : (
-            <Button variant="ghost" asChild><Link to="/login">Log in</Link></Button>
-          )}
-          <Button variant="outline" asChild><Link to="/list-your-business">List your business</Link></Button>
-          {/* Standard CTA proportions: 16px bold at desktop with 20px of side
+          <span className="absolute left-1/2 -translate-x-1/2 sm:hidden">
+            <Button asChild className="call-button h-auto px-3 py-2 text-sm font-bold">
+              <a href="tel:+16416663945" aria-label="Call us (641) 666-3945">
+                <Phone className="call-icon" />
+                Call us
+              </a>
+            </Button>
+          </span>
+          <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
+            <Link to="/explore" className="nav-link">
+              Explore
+            </Link>
+            <Link to="/search" search={{ q: "", location: "" }} className="nav-link">
+              Categories
+            </Link>
+            <Link to="/request-quote" className="nav-link">
+              Request a quote
+            </Link>
+          </nav>
+          <div className="hidden items-center gap-2 sm:flex">
+            {user ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to={workspace}>Hi, {firstName}</Link>
+                </Button>
+                <Button variant="ghost" onClick={closeAndLogout}>
+                  Log out
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" asChild>
+                <Link to="/login">Log in</Link>
+              </Button>
+            )}
+            <Button variant="outline" asChild>
+              <Link to="/list-your-business">List your business</Link>
+            </Button>
+            {/* Standard CTA proportions: 16px bold at desktop with 20px of side
               padding, a touch smaller in the compact tablet range. It rings and
               lifts on hover: see .call-button in styles.css. Between 640px and the
               desktop nav the row has no room for the words "Call us" as well, so
               there the handset and the number carry it and the label, which is
               always the full phrase, names the link. */}
-          <Button asChild className="call-button h-auto px-4 py-3 text-sm font-bold lg:px-5 lg:text-base"><a href="tel:+16416663945" aria-label="Call us (641) 666-3945"><Phone className="call-icon" /><span className="hidden lg:inline">Call us</span>{" "}(641) 666-3945</a></Button>
+            <Button
+              asChild
+              className="call-button h-auto px-4 py-3 text-sm font-bold lg:px-5 lg:text-base"
+            >
+              <a href="tel:+16416663945" aria-label="Call us (641) 666-3945">
+                <Phone className="call-icon" />
+                <span className="hidden lg:inline">Call us</span> (641) 666-3945
+              </a>
+            </Button>
+          </div>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open menu">
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>
+                  <Brand />
+                </SheetTitle>
+                <SheetDescription>Everything for an unforgettable party.</SheetDescription>
+              </SheetHeader>
+              <nav className="mt-8 grid gap-2">
+                <MobileLink to="/explore">Explore</MobileLink>
+                <MobileLink to="/request-quote">Request a quote</MobileLink>
+                <MobileLink to="/list-your-business">List your business</MobileLink>
+                {user ? (
+                  <>
+                    <MobileLink to={workspace}>Hi, {firstName}</MobileLink>
+                    <button
+                      type="button"
+                      onClick={closeAndLogout}
+                      className="rounded-lg px-4 py-3 text-left text-base font-semibold hover:bg-muted"
+                    >
+                      Log out
+                    </button>
+                  </>
+                ) : (
+                  <MobileLink to="/login">Log in</MobileLink>
+                )}
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
-        <Sheet><SheetTrigger asChild><Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open menu"><Menu /></Button></SheetTrigger>
-          <SheetContent><SheetHeader><SheetTitle><Brand /></SheetTitle><SheetDescription>Everything for an unforgettable party.</SheetDescription></SheetHeader>
-            <nav className="mt-8 grid gap-2">
-              <MobileLink to="/explore">Explore</MobileLink>
-              <MobileLink to="/request-quote">Request a quote</MobileLink>
-              <MobileLink to="/list-your-business">List your business</MobileLink>
-              {user ? <>
-                <MobileLink to={workspace}>Hi, {firstName}</MobileLink>
-                <button type="button" onClick={closeAndLogout} className="rounded-lg px-4 py-3 text-left text-base font-semibold hover:bg-muted">Log out</button>
-              </> : <MobileLink to="/login">Log in</MobileLink>}
-            </nav>
-          </SheetContent></Sheet>
-      </div>
-    </header>
-  </>;
+      </header>
+    </>
+  );
 }
 
-type MobileLinkTarget = "/explore" | "/request-quote" | "/favorites" | "/vendor/dashboard" | "/account" | "/login" | "/list-your-business" | "/admin";
+type MobileLinkTarget =
+  | "/explore"
+  | "/request-quote"
+  | "/favorites"
+  | "/vendor/dashboard"
+  | "/account"
+  | "/login"
+  | "/list-your-business"
+  | "/admin";
 
 function MobileLink({ to, children }: { to: MobileLinkTarget; children: ReactNode }) {
-  return <Link to={to} className="rounded-lg px-4 py-3 text-base font-semibold hover:bg-muted">{children}</Link>;
+  return (
+    <Link to={to} className="rounded-lg px-4 py-3 text-base font-semibold hover:bg-muted">
+      {children}
+    </Link>
+  );
 }
 
 export function MobileNav() {
-  return <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl md:hidden" aria-label="Mobile navigation">
-    <MobileNavLink to="/" icon={<Home />} label="Home" /><MobileNavLink to="/explore" icon={<Compass />} label="Explore" /><MobileNavLink to="/favorites" icon={<Heart />} label="Saved" /><MobileNavLink to="/quotes" icon={<MessageCircle />} label="Quotes" /><MobileNavLink to="/account" icon={<UserRound />} label="Account" />
-  </nav>;
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl md:hidden"
+      aria-label="Mobile navigation"
+    >
+      <MobileNavLink to="/" icon={<Home />} label="Home" />
+      <MobileNavLink to="/explore" icon={<Compass />} label="Explore" />
+      <MobileNavLink to="/favorites" icon={<Heart />} label="Saved" />
+      <MobileNavLink to="/quotes" icon={<MessageCircle />} label="Quotes" />
+      <MobileNavLink to="/account" icon={<UserRound />} label="Account" />
+    </nav>
+  );
 }
 
-function MobileNavLink({ to, icon, label }: { to: "/" | "/explore" | "/favorites" | "/quotes" | "/account"; icon: ReactNode; label: string }) {
-  return <Link to={to} className="flex min-h-14 flex-col items-center gap-1 text-[11px] font-semibold text-muted-foreground data-[status=active]:text-primary [&_svg]:size-5">{icon}{label}</Link>;
+function MobileNavLink({
+  to,
+  icon,
+  label,
+}: {
+  to: "/" | "/explore" | "/favorites" | "/quotes" | "/account";
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="flex min-h-14 flex-col items-center gap-1 text-[11px] font-semibold text-muted-foreground data-[status=active]:text-primary [&_svg]:size-5"
+    >
+      {icon}
+      {label}
+    </Link>
+  );
 }
 
 /**
@@ -109,7 +243,9 @@ function MobileNavLink({ to, icon, label }: { to: "/" | "/explore" | "/favorites
  * is a moment later; the real name then replaces it if it differs.
  */
 function categoryLabel(slug: string) {
-  return slug ? slug.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase()) : "";
+  return slug
+    ? slug.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+    : "";
 }
 
 /**
@@ -117,7 +253,15 @@ function categoryLabel(slug: string) {
  * URL and then into the quote request — they are not availability filters,
  * because the directory has no availability data to filter on.
  */
-export function SearchPanel({ compact = false, initial = "", initialLocation = "", initialDate = "", initialKids = "", initialCategory = "", carry }: {
+export function SearchPanel({
+  compact = false,
+  initial = "",
+  initialLocation = "",
+  initialDate = "",
+  initialKids = "",
+  initialCategory = "",
+  carry,
+}: {
   compact?: boolean;
   initial?: string;
   initialLocation?: string;
@@ -140,6 +284,7 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   const [date, setDate] = useState(initialDate);
   const [kids, setKids] = useState(initialKids);
   const [suggestions, setSuggestions] = useState<City[]>([]);
+  const [states, setStates] = useState<State[]>([]);
   const [queryOpen, setQueryOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -167,6 +312,10 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   }, []);
 
   useEffect(() => {
+    void fetchStates().then(setStates);
+  }, []);
+
+  useEffect(() => {
     const term = location.trim();
     if (term.length < 2) {
       setSuggestions([]);
@@ -184,14 +333,38 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
     };
   }, [location]);
 
+  /**
+   * State matches for the Where box. A state is the broader answer — "Texas" reaches
+   * every Texas listing, not just the cities that have rows — so it is offered first.
+   * The reference table is small enough to filter here rather than on every keystroke.
+   * The rule mirrors the one the search itself uses, so every suggestion is a search
+   * that works: the code or the start of the name always, and the start of any word in
+   * the name only once two letters cannot be ambiguous ("ca" is California's code, not
+   * Carolina's).
+   */
+  const stateSuggestions = useMemo(() => {
+    const term = location.trim().toLowerCase();
+    if (term.length < 2) return [];
+    return states
+      .filter((state) => {
+        const name = state.name.toLowerCase();
+        if (state.code.toLowerCase() === term || name.startsWith(term)) return true;
+        return term.length >= 3 && name.split(/\s+/).some((word) => word.startsWith(term));
+      })
+      .slice(0, 3);
+  }, [states, location]);
+
   const querySuggestions = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (term.length < 1) return categories.slice(0, 8);
-    return categories.filter((category) =>
-      category.name.toLowerCase().includes(term) ||
-      category.slug.replaceAll("-", " ").includes(term) ||
-      category.subcategories.some((item) => item.toLowerCase().includes(term)),
-    ).slice(0, 8);
+    return categories
+      .filter(
+        (category) =>
+          category.name.toLowerCase().includes(term) ||
+          category.slug.replaceAll("-", " ").includes(term) ||
+          category.subcategories.some((item) => item.toLowerCase().includes(term)),
+      )
+      .slice(0, 8);
   }, [categories, query]);
 
   const today = useMemo(() => todayISO(), []);
@@ -199,111 +372,200 @@ export function SearchPanel({ compact = false, initial = "", initialLocation = "
   const matchedCategory = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return undefined;
-    return categories.find((category) =>
-      category.name.toLowerCase() === term ||
-      category.slug.replaceAll("-", " ") === term ||
-      category.slug === term,
+    return categories.find(
+      (category) =>
+        category.name.toLowerCase() === term ||
+        category.slug.replaceAll("-", " ") === term ||
+        category.slug === term,
     );
   }, [categories, query]);
 
-  return <form
-    onSubmit={(event) => {
-      event.preventDefault();
-      const params = new URLSearchParams(carry ?? {});
-      params.set("location", location);
-      if (matchedCategory) params.set("category", matchedCategory.slug);
-      else if (query.trim()) params.set("q", query.trim());
-      if (date) params.set("date", date);
-      if (kids) params.set("kids", kids);
-      window.location.assign(`/search?${params.toString()}`);
-    }}
-    className={cn("search-shell", compact && "search-shell-compact")}>
-    <div className="search-field relative sm:col-span-2">
-      <label htmlFor={queryId}>What are you looking for?</label>
-      <div>
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const params = new URLSearchParams(carry ?? {});
+        params.set("location", location);
+        if (matchedCategory) params.set("category", matchedCategory.slug);
+        else if (query.trim()) params.set("q", query.trim());
+        if (date) params.set("date", date);
+        if (kids) params.set("kids", kids);
+        window.location.assign(`/search?${params.toString()}`);
+      }}
+      className={cn("search-shell", compact && "search-shell-compact")}
+    >
+      <div className="search-field relative sm:col-span-2">
+        <label htmlFor={queryId}>What are you looking for?</label>
+        <div>
+          <Search />
+          <Input
+            id={queryId}
+            value={query}
+            autoComplete="off"
+            placeholder="Superhero, princess, magician..."
+            onChange={(event) => {
+              typed.current = true;
+              setQuery(event.target.value);
+              setQueryOpen(true);
+            }}
+            onFocus={() => setQueryOpen(true)}
+            onBlur={() => window.setTimeout(() => setQueryOpen(false), 120)}
+          />
+        </div>
+        {queryOpen && querySuggestions.length > 0 && (
+          <ul className="search-suggest" role="listbox">
+            {querySuggestions.map((category) => (
+              <li key={category.slug}>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    typed.current = true;
+                    setQuery(category.name);
+                    setQueryOpen(false);
+                  }}
+                >
+                  <span>{category.name}</span>
+                  <span>{category.count} businesses</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="search-field relative">
+        <label htmlFor={locationId}>Where?</label>
+        <div>
+          <MapPin />
+          <Input
+            id={locationId}
+            value={location}
+            autoComplete="off"
+            placeholder="City or state"
+            onChange={(event) => {
+              setLocation(event.target.value);
+              setCityOpen(true);
+            }}
+            onFocus={() => setCityOpen(true)}
+            onBlur={() => window.setTimeout(() => setCityOpen(false), 120)}
+          />
+        </div>
+        {cityOpen && (stateSuggestions.length > 0 || suggestions.length > 0) && (
+          <ul className="search-suggest" role="listbox">
+            {stateSuggestions.map((state) => (
+              <li key={`state-${state.code}`}>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setLocation(state.name);
+                    setCityOpen(false);
+                  }}
+                >
+                  <span>{state.name}</span>
+                  <span>{state.count} businesses statewide</span>
+                </button>
+              </li>
+            ))}
+            {suggestions.slice(0, Math.max(0, 8 - stateSuggestions.length)).map((city) => (
+              <li key={`${city.name}-${city.stateCode}`}>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setLocation(city.label);
+                    setCityOpen(false);
+                  }}
+                >
+                  <span>{city.label}</span>
+                  <span>{city.count} businesses</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {!compact && (
+        <>
+          <div className="search-field">
+            <label htmlFor="party-date">When?</label>
+            <div>
+              <CalendarDays />
+              <DateField
+                id="party-date"
+                min={today}
+                value={date}
+                onChange={setDate}
+                openOnClick
+                wrapperClassName="min-w-0 flex-1"
+              />
+            </div>
+          </div>
+          <div className="search-field">
+            <label htmlFor="party-kids">Kids</label>
+            <div>
+              <Users />
+              <Input
+                id="party-kids"
+                type="number"
+                min="1"
+                value={kids}
+                onChange={(event) => setKids(event.target.value)}
+                placeholder="How many?"
+              />
+            </div>
+          </div>
+        </>
+      )}
+      <Button type="submit" size="lg" className={cn("h-14", compact ? "sm:h-12" : "sm:h-[4.5rem]")}>
         <Search />
-        <Input
-          id={queryId}
-          value={query}
-          autoComplete="off"
-          placeholder="Superhero, princess, magician..."
-          onChange={(event) => { typed.current = true; setQuery(event.target.value); setQueryOpen(true); }}
-          onFocus={() => setQueryOpen(true)}
-          onBlur={() => window.setTimeout(() => setQueryOpen(false), 120)}
-        />
-      </div>
-      {queryOpen && querySuggestions.length > 0 && (
-        <ul className="search-suggest" role="listbox">
-          {querySuggestions.map((category) => (
-            <li key={category.slug}>
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => { typed.current = true; setQuery(category.name); setQueryOpen(false); }}
-              >
-                <span>{category.name}</span>
-                <span>{category.count} businesses</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {compact ? "Search" : "Find party entertainment"}
+      </Button>
+      {!compact && (date || kids) && (
+        <p className="col-span-full pt-1 text-xs text-muted-foreground">
+          We will carry {date ? `the ${formatDate(date)} date` : "your date"}
+          {kids ? ` and ${kids} children` : ""} through to your quote request.
+        </p>
       )}
-    </div>
-    <div className="search-field relative">
-      <label htmlFor={locationId}>Where?</label>
-      <div>
-        <MapPin />
-        <Input
-          id={locationId}
-          value={location}
-          autoComplete="off"
-          placeholder="City or state"
-          onChange={(event) => { setLocation(event.target.value); setCityOpen(true); }}
-          onFocus={() => setCityOpen(true)}
-          onBlur={() => window.setTimeout(() => setCityOpen(false), 120)}
-        />
-      </div>
-      {cityOpen && suggestions.length > 0 && (
-        <ul className="search-suggest" role="listbox">
-          {suggestions.map((city) => (
-            <li key={`${city.name}-${city.stateCode}`}>
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => { setLocation(city.label); setCityOpen(false); }}
-              >
-                <span>{city.label}</span>
-                <span>{city.count} businesses</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-    {!compact && <>
-      <div className="search-field"><label htmlFor="party-date">When?</label><div><CalendarDays /><DateField id="party-date" min={today} value={date} onChange={setDate} wrapperClassName="min-w-0 flex-1" /></div></div>
-      <div className="search-field"><label htmlFor="party-kids">Kids</label><div><Users /><Input id="party-kids" type="number" min="1" value={kids} onChange={(event) => setKids(event.target.value)} placeholder="How many?" /></div></div>
-    </>}
-    <Button type="submit" size="lg" className={cn("h-14", compact ? "sm:h-12" : "sm:h-[4.5rem]")}><Search />{compact ? "Search" : "Find party entertainment"}</Button>
-    {!compact && (date || kids) && <p className="col-span-full pt-1 text-xs text-muted-foreground">We will carry {date ? `the ${formatDate(date)} date` : "your date"}{kids ? ` and ${kids} children` : ""} through to your quote request.</p>}
-  </form>;
+    </form>
+  );
 }
 
 export function Rating({ value, reviews }: { value: number; reviews: number | null }) {
   // A count of 0 means "never captured", not "no reviews", so it is left off
   // rather than printed as a rating that looks unrated.
   const count = reviews && reviews > 0 ? `(${reviews})` : null;
-  return <span className="inline-flex items-center gap-1 text-sm"><Star className="size-4 fill-rating text-rating" /><b>{value}</b>{count && <span className="text-muted-foreground">{count}</span>}</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-sm">
+      <Star className="size-4 fill-rating text-rating" />
+      <b>{value}</b>
+      {count && <span className="text-muted-foreground">{count}</span>}
+    </span>
+  );
 }
 
 export function FavoriteButton({ id, name }: { id: number; name: string }) {
   const { isSaved, toggleSaved } = useSaved();
   const saved = isSaved(id);
-  return <Button variant="surface" size="icon" className="absolute right-3 top-3 z-10 rounded-full" onClick={() => void toggleSaved(id)} aria-label={`${saved ? "Remove" : "Save"} ${name}`} aria-pressed={saved}><Heart className={cn(saved && "fill-favorite text-favorite")} /></Button>;
+  return (
+    <Button
+      variant="surface"
+      size="icon"
+      className="absolute right-3 top-3 z-10 rounded-full"
+      onClick={() => void toggleSaved(id)}
+      aria-label={`${saved ? "Remove" : "Save"} ${name}`}
+      aria-pressed={saved}
+    >
+      <Heart className={cn(saved && "fill-favorite text-favorite")} />
+    </Button>
+  );
 }
 
 function categorySlugs(value: string) {
-  return value.split(",").map((slug) => slug.trim()).filter(Boolean);
+  return value
+    .split(",")
+    .map((slug) => slug.trim())
+    .filter(Boolean);
 }
 
 function toggleCategorySlug(current: string, slug: string) {
@@ -314,7 +576,15 @@ function toggleCategorySlug(current: string, slug: string) {
 }
 
 function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase() || "?"
+  );
 }
 
 /**
@@ -325,16 +595,39 @@ function initials(name: string) {
 export function VendorLogo({ vendor, className }: { vendor: Vendor; className?: string }) {
   const [broken, setBroken] = useState(false);
   if (vendor.logo && !broken) {
-    return <img src={vendor.logo} alt="" loading="lazy" width={44} height={44} onError={() => setBroken(true)} className={cn("size-11 shrink-0 rounded-xl border border-border bg-background object-contain p-1", className)} />;
+    return (
+      <img
+        src={vendor.logo}
+        alt=""
+        loading="lazy"
+        width={44}
+        height={44}
+        onError={() => setBroken(true)}
+        className={cn(
+          "size-11 shrink-0 rounded-xl border border-border bg-background object-contain p-1",
+          className,
+        )}
+      />
+    );
   }
-  return <span aria-hidden className={cn("grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-primary-soft font-display text-sm font-extrabold text-primary", className)}>{initials(vendor.name)}</span>;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-primary-soft font-display text-sm font-extrabold text-primary",
+        className,
+      )}
+    >
+      {initials(vendor.name)}
+    </span>
+  );
 }
 
 /**
  * A card's picture is hot-linked from the business's own site, so it can 404, expire
  * or stop serving us at any time. When it does, the picture for its category takes
  * over rather than leaving a broken image on the card.
- */export function imageFallback(fallback: string) {
+ */ export function imageFallback(fallback: string) {
   return (event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     // The flag stops a second failure (of the fallback itself) from looping.
@@ -360,22 +653,121 @@ function withoutPhone(text: string) {
     .trim();
 }
 
-export function VendorCard({ vendor, compact = false, active, showCompare = false }: { vendor: Vendor; compact?: boolean; active?: boolean; showCompare?: boolean }) {
+export function VendorCard({
+  vendor,
+  compact = false,
+  active,
+  showCompare = false,
+}: {
+  vendor: Vendor;
+  compact?: boolean;
+  active?: boolean;
+  showCompare?: boolean;
+}) {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const { isComparing, toggleCompare } = useSaved();
-  return <article className={cn("vendor-card group", compact && "vendor-card-compact", active && "ring-2 ring-primary")}>
-    <div className="relative overflow-hidden"><img src={vendor.image} onError={imageFallback(vendor.fallbackImage)} alt="" loading="lazy" width={700} height={460} className="vendor-image" /><FavoriteButton id={vendor.id} name={vendor.name} />{vendor.featured && <span className="absolute left-3 top-3 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-bold text-background backdrop-blur">Featured</span>}</div>
-    <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-3"><VendorLogo vendor={vendor} className={compact ? "size-9 rounded-lg" : ""} /><div className="min-w-0"><Link to="/vendors/$slug" params={{ slug: vendor.slug }} className="font-display text-lg font-extrabold hover:text-primary">{vendor.name}</Link><div className="mt-1 flex flex-wrap items-center gap-2">{vendor.rating > 0 && <Rating value={vendor.rating} reviews={vendor.reviews} />}{vendor.website && <span className="inline-flex items-center gap-1 text-xs font-bold text-trust"><BadgeCheck className="size-4" />Website</span>}</div></div></div>{vendor.price > 0 && <div className="text-right"><b className="text-lg">${vendor.price}</b><p className="text-xs text-muted-foreground">starting</p></div>}</div>
-      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground"><span>{vendor.category}</span>{vendor.location && <><span>•</span><span>{vendor.location}</span></>}</div>
-      <div className="vendor-details"><p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{withoutPhone(vendor.description)}</p></div>
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">{showCompare && <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"><Checkbox checked={isComparing(vendor.id)} onCheckedChange={() => toggleCompare(vendor.id)} />Compare</label>}<QuoteDialog vendor={vendor} open={quoteOpen} onOpenChange={setQuoteOpen} /><Button size="sm" onClick={() => setQuoteOpen(true)}>Request quote</Button></div>
-    </div>
-  </article>;
+  return (
+    <article
+      className={cn(
+        "vendor-card group",
+        compact && "vendor-card-compact",
+        active && "ring-2 ring-primary",
+      )}
+    >
+      <div className="relative overflow-hidden">
+        <img
+          src={vendor.image}
+          onError={imageFallback(vendor.fallbackImage)}
+          alt=""
+          loading="lazy"
+          width={700}
+          height={460}
+          className="vendor-image"
+        />
+        <FavoriteButton id={vendor.id} name={vendor.name} />
+        {vendor.featured && (
+          <span className="absolute left-3 top-3 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-bold text-background backdrop-blur">
+            Featured
+          </span>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 gap-3">
+            <VendorLogo vendor={vendor} className={compact ? "size-9 rounded-lg" : ""} />
+            <div className="min-w-0">
+              <Link
+                to="/vendors/$slug"
+                params={{ slug: vendor.slug }}
+                className="font-display text-lg font-extrabold hover:text-primary"
+              >
+                {vendor.name}
+              </Link>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {vendor.rating > 0 && <Rating value={vendor.rating} reviews={vendor.reviews} />}
+                {vendor.website && (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-trust">
+                    <BadgeCheck className="size-4" />
+                    Website
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {vendor.price > 0 && (
+            <div className="text-right">
+              <b className="text-lg">${vendor.price}</b>
+              <p className="text-xs text-muted-foreground">starting</p>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span>{vendor.category}</span>
+          {vendor.location && (
+            <>
+              <span>•</span>
+              <span>{vendor.location}</span>
+            </>
+          )}
+        </div>
+        <div className="vendor-details">
+          <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">
+            {withoutPhone(vendor.description)}
+          </p>
+        </div>
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+          {showCompare && (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold">
+              <Checkbox
+                checked={isComparing(vendor.id)}
+                onCheckedChange={() => toggleCompare(vendor.id)}
+              />
+              Compare
+            </label>
+          )}
+          <QuoteDialog vendor={vendor} open={quoteOpen} onOpenChange={setQuoteOpen} />
+          <Button size="sm" onClick={() => setQuoteOpen(true)}>
+            Request quote
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
-export function TrustBadge({ icon: Icon = ShieldCheck, children }: { icon?: typeof ShieldCheck; children: ReactNode }) {
-  return <span className="inline-flex items-center gap-2 rounded-full border border-trust/20 bg-trust-soft px-3 py-2 text-sm font-bold text-trust"><Icon className="size-4" />{children}</span>;
+export function TrustBadge({
+  icon: Icon = ShieldCheck,
+  children,
+}: {
+  icon?: typeof ShieldCheck;
+  children: ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-trust/20 bg-trust-soft px-3 py-2 text-sm font-bold text-trust">
+      <Icon className="size-4" />
+      {children}
+    </span>
+  );
 }
 
 /**
@@ -383,7 +775,12 @@ export function TrustBadge({ icon: Icon = ShieldCheck, children }: { icon?: type
  * and a starting-price range. The price controls only appear once businesses
  * publish prices, so the UI never offers a filter that cannot match anything.
  */
-export function FilterPanel({ mobile = false, state, onChange, summary }: {
+export function FilterPanel({
+  mobile = false,
+  state,
+  onChange,
+  summary,
+}: {
   mobile?: boolean;
   state: SearchState;
   onChange: (next: Partial<SearchState>) => void;
@@ -396,82 +793,155 @@ export function FilterPanel({ mobile = false, state, onChange, summary }: {
   useEffect(() => {
     const location = state.location;
     let cancelled = false;
-    const timer = setTimeout(() => {
-      void fetchCategories({ location }).then((rows) => {
-        if (!cancelled) setCategories(rows);
-      });
-    }, location ? 300 : 0);
+    const timer = setTimeout(
+      () => {
+        void fetchCategories({ location }).then((rows) => {
+          if (!cancelled) setCategories(rows);
+        });
+      },
+      location ? 300 : 0,
+    );
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [state.location]);
   const pricesAvailable = (summary?.pricedListings ?? 0) > 0;
-  const activeCount = [state.category, state.location, state.priceMin, state.priceMax, state.ratingMin].filter(Boolean).length;
+  const activeCount = [
+    state.category,
+    state.location,
+    state.priceMin,
+    state.priceMax,
+    state.ratingMin,
+  ].filter(Boolean).length;
 
-  return <div className={cn("space-y-6", mobile && "pb-24")}>
-    <div className="flex items-center justify-between">
-      <h2 className="font-display text-lg font-extrabold">Filters{activeCount ? ` (${activeCount})` : ""}</h2>
-      {activeCount > 0 && <Button variant="ghost" size="sm" onClick={() => onChange({ category: "", location: "", priceMin: null, priceMax: null, ratingMin: null, sort: "relevance", page: 1 })}>Clear</Button>}
-    </div>
-
-    <fieldset>
-      <legend className="mb-3 text-sm font-bold">Category</legend>
-      {state.location && (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Counts are for businesses in {state.location} only.
-        </p>
-      )}
-      <div className="space-y-2.5">
-        <label className="flex cursor-pointer items-center gap-3 text-sm">
-          <Checkbox checked={!state.category} onCheckedChange={(checked) => { if (checked) onChange({ category: "", page: 1 }); }} />
-          All categories
-        </label>
-        {categories.map((option) => {
-          const selected = categorySlugs(state.category).includes(option.slug);
-          return (
-            <label key={option.slug} className="flex cursor-pointer items-center gap-3 text-sm">
-              <Checkbox
-                checked={selected}
-                onCheckedChange={() => onChange({ category: toggleCategorySlug(state.category, option.slug), page: 1 })}
-              />
-              {option.name} <span className="text-muted-foreground">({option.count})</span>
-            </label>
-          );
-        })}
+  return (
+    <div className={cn("space-y-6", mobile && "pb-24")}>
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-lg font-extrabold">
+          Filters{activeCount ? ` (${activeCount})` : ""}
+        </h2>
+        {activeCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              onChange({
+                category: "",
+                location: "",
+                priceMin: null,
+                priceMax: null,
+                ratingMin: null,
+                sort: "relevance",
+                page: 1,
+              })
+            }
+          >
+            Clear
+          </Button>
+        )}
       </div>
-    </fieldset>
 
-    <fieldset>
-      <legend className="mb-3 text-sm font-bold">Rating</legend>
-      <label className="flex cursor-pointer items-center gap-3 text-sm">
-        <Checkbox checked={state.ratingMin === 4.5} onCheckedChange={(checked) => onChange({ ratingMin: checked ? 4.5 : null, page: 1 })} />
-        Only 4.5 stars and up
-      </label>
-    </fieldset>
-
-    {pricesAvailable ? (
       <fieldset>
-        <legend className="mb-3 text-sm font-bold">Starting price</legend>
-        <p className="mb-3 text-xs text-muted-foreground">{summary?.pricedListings} of {summary?.listings} businesses publish a price.</p>
-        <div className="flex items-center gap-2">
-          <Input inputMode="numeric" aria-label="Minimum price" placeholder="Min" value={state.priceMin ?? ""} onChange={(event) => onChange({ priceMin: event.target.value === "" ? null : Number(event.target.value), page: 1 })} className={CONTROL_CLASS} />
-          <span className="text-muted-foreground">–</span>
-          <Input inputMode="numeric" aria-label="Maximum price" placeholder="Max" value={state.priceMax ?? ""} onChange={(event) => onChange({ priceMax: event.target.value === "" ? null : Number(event.target.value), page: 1 })} className={CONTROL_CLASS} />
+        <legend className="mb-3 text-sm font-bold">Category</legend>
+        {state.location && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Counts are for businesses in {state.location} only.
+          </p>
+        )}
+        <div className="space-y-2.5">
+          <label className="flex cursor-pointer items-center gap-3 text-sm">
+            <Checkbox
+              checked={!state.category}
+              onCheckedChange={(checked) => {
+                if (checked) onChange({ category: "", page: 1 });
+              }}
+            />
+            All categories
+          </label>
+          {categories.map((option) => {
+            const selected = categorySlugs(state.category).includes(option.slug);
+            return (
+              <label key={option.slug} className="flex cursor-pointer items-center gap-3 text-sm">
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={() =>
+                    onChange({ category: toggleCategorySlug(state.category, option.slug), page: 1 })
+                  }
+                />
+                {option.name} <span className="text-muted-foreground">({option.count})</span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
-    ) : (
-      <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-        No business in the directory has published a starting price yet, so there is nothing to
-        filter by. Ask for quotes instead — businesses reply with their own pricing.
-      </p>
-    )}
 
-    <fieldset>
-      <legend className="mb-3 text-sm font-bold">City or state</legend>
-      <Input value={state.location} onChange={(event) => onChange({ location: event.target.value, page: 1 })} placeholder="Dallas or TX" aria-label="City or state" className={CONTROL_CLASS} />
-    </fieldset>
-  </div>;
+      <fieldset>
+        <legend className="mb-3 text-sm font-bold">Rating</legend>
+        <label className="flex cursor-pointer items-center gap-3 text-sm">
+          <Checkbox
+            checked={state.ratingMin === 4.5}
+            onCheckedChange={(checked) => onChange({ ratingMin: checked ? 4.5 : null, page: 1 })}
+          />
+          Only 4.5 stars and up
+        </label>
+      </fieldset>
+
+      {pricesAvailable ? (
+        <fieldset>
+          <legend className="mb-3 text-sm font-bold">Starting price</legend>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {summary?.pricedListings} of {summary?.listings} businesses publish a price.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              inputMode="numeric"
+              aria-label="Minimum price"
+              placeholder="Min"
+              value={state.priceMin ?? ""}
+              onChange={(event) =>
+                onChange({
+                  priceMin: event.target.value === "" ? null : Number(event.target.value),
+                  page: 1,
+                })
+              }
+              className={CONTROL_CLASS}
+            />
+            <span className="text-muted-foreground">–</span>
+            <Input
+              inputMode="numeric"
+              aria-label="Maximum price"
+              placeholder="Max"
+              value={state.priceMax ?? ""}
+              onChange={(event) =>
+                onChange({
+                  priceMax: event.target.value === "" ? null : Number(event.target.value),
+                  page: 1,
+                })
+              }
+              className={CONTROL_CLASS}
+            />
+          </div>
+        </fieldset>
+      ) : (
+        <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+          No business in the directory has published a starting price yet, so there is nothing to
+          filter by. Ask for quotes instead — businesses reply with their own pricing.
+        </p>
+      )}
+
+      <fieldset>
+        <legend className="mb-3 text-sm font-bold">City or state</legend>
+        <Input
+          value={state.location}
+          onChange={(event) => onChange({ location: event.target.value, page: 1 })}
+          placeholder="Dallas or TX"
+          aria-label="City or state"
+          className={CONTROL_CLASS}
+        />
+      </fieldset>
+    </div>
+  );
 }
 
 /** Real aggregation of the current results by city — no invented map positions. */
@@ -486,17 +956,35 @@ function CityBreakdown({ items, onPick }: { items: Vendor[]; onPick: (city: stri
   }, [items]);
 
   if (counts.length === 0) return null;
-  return <div className="rounded-lg border bg-background p-5">
-    <h2 className="font-display text-lg font-extrabold">Where these results are</h2>
-    <p className="mt-1 text-xs text-muted-foreground">Counted from the {items.length} businesses shown on this page.</p>
-    <ul className="mt-4 space-y-2">
-      {counts.map(([city, count]) => <li key={city}>
-        {city === "Location not listed"
-          ? <span className="flex items-center justify-between text-sm text-muted-foreground"><span>{city}</span><span>{count}</span></span>
-          : <button type="button" onClick={() => onPick((city.split(",")[0] ?? city).trim())} className="flex w-full items-center justify-between text-left text-sm hover:text-primary"><span>{city}</span><span className="text-muted-foreground">{count}</span></button>}
-      </li>)}
-    </ul>
-  </div>;
+  return (
+    <div className="rounded-lg border bg-background p-5">
+      <h2 className="font-display text-lg font-extrabold">Where these results are</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Counted from the {items.length} businesses shown on this page.
+      </p>
+      <ul className="mt-4 space-y-2">
+        {counts.map(([city, count]) => (
+          <li key={city}>
+            {city === "Location not listed" ? (
+              <span className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>{city}</span>
+                <span>{count}</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onPick((city.split(",")[0] ?? city).trim())}
+                className="flex w-full items-center justify-between text-left text-sm hover:text-primary"
+              >
+                <span>{city}</span>
+                <span className="text-muted-foreground">{count}</span>
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /**
@@ -529,7 +1017,13 @@ function useHideStickySearchBar() {
   return hidden;
 }
 
-export function SearchResults({ title = "Find businesses", state, onChange, category, location }: {
+export function SearchResults({
+  title = "Find businesses",
+  state,
+  onChange,
+  category,
+  location,
+}: {
   title?: string;
   /** Supplied by /search. Category and city landing pages leave it out. */
   state?: SearchState;
@@ -571,125 +1065,260 @@ export function SearchResults({ title = "Find businesses", state, onChange, cate
   const { compareIds, clearCompare } = useSaved();
   const searchBarHidden = useHideStickySearchBar();
 
-  useEffect(() => { void fetchDirectorySummary().then(setSummary); }, []);
+  useEffect(() => {
+    void fetchDirectorySummary().then(setSummary);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     void fetchListings({
-      q: active.q, location: active.location, category: active.category,
-      priceMin: active.priceMin ?? undefined, priceMax: active.priceMax ?? undefined,
-      ratingMin: active.ratingMin ?? undefined, sort: active.sort,
-      page: active.page, pageSize: 24,
+      q: active.q,
+      location: active.location,
+      category: active.category,
+      priceMin: active.priceMin ?? undefined,
+      priceMax: active.priceMax ?? undefined,
+      ratingMin: active.ratingMin ?? undefined,
+      sort: active.sort,
+      page: active.page,
+      pageSize: 24,
     }).then((data) => {
       if (cancelled) return;
       setShown(data.items);
       setTotal(data.total);
       setLoading(false);
     });
-    return () => { cancelled = true; };
-  }, [active.q, active.location, active.category, active.priceMin, active.priceMax, active.ratingMin, active.sort, active.page]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active.q,
+    active.location,
+    active.category,
+    active.priceMin,
+    active.priceMax,
+    active.ratingMin,
+    active.sort,
+    active.page,
+  ]);
 
   const pages = Math.max(1, Math.ceil(total / 24));
-  const activeFilters = [active.category, active.location, active.priceMin, active.priceMax, active.ratingMin].filter(Boolean).length;
+  const activeFilters = [
+    active.category,
+    active.location,
+    active.priceMin,
+    active.priceMax,
+    active.ratingMin,
+  ].filter(Boolean).length;
 
-  return <main className="min-h-screen bg-surface pb-24">
-    <div
-      inert={searchBarHidden || undefined}
-      className={cn(
-        "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-18 lg:z-30 lg:backdrop-blur-xl",
-        searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_4.5rem)]",
-      )}
-    >
-      <div className="mx-auto max-w-7xl"><SearchPanel compact initial={active.q} initialCategory={active.category} initialLocation={active.location} initialDate={active.date} initialKids={active.kids} carry={{ ...(active.category ? { category: active.category } : {}), ...(active.sort ? { sort: active.sort } : {}), ...(active.priceMin != null ? { priceMin: String(active.priceMin) } : {}), ...(active.priceMax != null ? { priceMax: String(active.priceMax) } : {}), ...(active.ratingMin != null ? { ratingMin: String(active.ratingMin) } : {}) }} /></div>
-    </div>
-    <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold text-primary">Live directory</p>
-          <h1 className="font-display text-3xl font-extrabold">{title}</h1>
-          <p className="mt-1 text-muted-foreground" aria-live="polite">
-            {loading ? "Searching the directory…" : `${total} ${total === 1 ? "business" : "businesses"} match`}
-            {active.location ? ` in ${active.location}` : ""}{active.q ? ` for “${active.q}”` : ""}
-            {activeFilters > 0 ? ` · ${activeFilters} filter${activeFilters === 1 ? "" : "s"}` : ""}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Sheet>
-            <SheetTrigger asChild><Button variant="outline" className="lg:hidden"><Filter />Filters</Button></SheetTrigger>
-            <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
-              <SheetHeader><SheetTitle>Refine your party</SheetTitle><SheetDescription>Every filter here maps to data the directory holds.</SheetDescription></SheetHeader>
-              <div className="mt-6"><FilterPanel mobile state={active} onChange={update} summary={summary} /></div>
-            </SheetContent>
-          </Sheet>
-          <Select value={active.sort} onValueChange={(value) => update({ sort: value as SortKey, page: 1 })}>
-            <SelectTrigger className="w-[190px]" aria-label="Sort results"><SlidersHorizontal /><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="relevance">Best match</SelectItem>
-              <SelectItem value="rating">Highest rated</SelectItem>
-              <SelectItem value="name">A–Z</SelectItem>
-              <SelectItem value="newest">Newest listings</SelectItem>
-              <SelectItem value="price_asc" disabled={(summary?.pricedListings ?? 0) === 0}>Price: low to high</SelectItem>
-              <SelectItem value="price_desc" disabled={(summary?.pricedListings ?? 0) === 0}>Price: high to low</SelectItem>
-            </SelectContent>
-          </Select>
+  return (
+    <main className="min-h-screen bg-surface pb-24">
+      <div
+        inert={searchBarHidden || undefined}
+        className={cn(
+          "border-b bg-background/95 px-4 py-3 transition-transform duration-300 lg:sticky lg:top-18 lg:z-30 lg:backdrop-blur-xl",
+          searchBarHidden && "lg:pointer-events-none lg:translate-y-[calc(-100%_-_4.5rem)]",
+        )}
+      >
+        <div className="mx-auto max-w-7xl">
+          <SearchPanel
+            compact
+            initial={active.q}
+            initialCategory={active.category}
+            initialLocation={active.location}
+            initialDate={active.date}
+            initialKids={active.kids}
+            carry={{
+              ...(active.category ? { category: active.category } : {}),
+              ...(active.sort ? { sort: active.sort } : {}),
+              ...(active.priceMin != null ? { priceMin: String(active.priceMin) } : {}),
+              ...(active.priceMax != null ? { priceMax: String(active.priceMax) } : {}),
+              ...(active.ratingMin != null ? { ratingMin: String(active.ratingMin) } : {}),
+            }}
+          />
         </div>
       </div>
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-primary">Live directory</p>
+            <h1 className="font-display text-3xl font-extrabold">{title}</h1>
+            <p className="mt-1 text-muted-foreground" aria-live="polite">
+              {loading
+                ? "Searching the directory…"
+                : `${total} ${total === 1 ? "business" : "businesses"} match`}
+              {active.location ? ` in ${active.location}` : ""}
+              {active.q ? ` for “${active.q}”` : ""}
+              {activeFilters > 0
+                ? ` · ${activeFilters} filter${activeFilters === 1 ? "" : "s"}`
+                : ""}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="lg:hidden">
+                  <Filter />
+                  Filters
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-2xl">
+                <SheetHeader>
+                  <SheetTitle>Refine your party</SheetTitle>
+                  <SheetDescription>
+                    Every filter here maps to data the directory holds.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6">
+                  <FilterPanel mobile state={active} onChange={update} summary={summary} />
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Select
+              value={active.sort}
+              onValueChange={(value) => update({ sort: value as SortKey, page: 1 })}
+            >
+              <SelectTrigger className="w-[190px]" aria-label="Sort results">
+                <SlidersHorizontal />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="relevance">Best match</SelectItem>
+                <SelectItem value="rating">Highest rated</SelectItem>
+                <SelectItem value="name">A–Z</SelectItem>
+                <SelectItem value="newest">Newest listings</SelectItem>
+                <SelectItem value="price_asc" disabled={(summary?.pricedListings ?? 0) === 0}>
+                  Price: low to high
+                </SelectItem>
+                <SelectItem value="price_desc" disabled={(summary?.pricedListings ?? 0) === 0}>
+                  Price: high to low
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-      {(active.date || active.kids) && <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary-soft p-4 text-sm">
-        <Building2 className="size-4 text-primary" />
-        <span>
-          Planning for {active.date ? formatDate(active.date) : "a date you have not set"}
-          {active.kids ? ` with ${active.kids} children` : ""}. The directory does not track availability —
-          send one quote request and businesses reply with what they can do.
-        </span>
-        <Button size="sm" asChild><Link to="/request-quote" search={{ city: active.location, date: active.date, kids: active.kids, category: active.category }}>Request quotes</Link></Button>
-      </div>}
+        {(active.date || active.kids) && (
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary-soft p-4 text-sm">
+            <Building2 className="size-4 text-primary" />
+            <span>
+              Planning for {active.date ? formatDate(active.date) : "a date you have not set"}
+              {active.kids ? ` with ${active.kids} children` : ""}. The directory does not track
+              availability — send one quote request and businesses reply with what they can do.
+            </span>
+            <Button size="sm" asChild>
+              <Link
+                to="/request-quote"
+                search={{
+                  city: active.location,
+                  date: active.date,
+                  kids: active.kids,
+                  category: active.category,
+                }}
+              >
+                Request quotes
+              </Link>
+            </Button>
+          </div>
+        )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="hidden self-start space-y-6 lg:block">
-          <div className="rounded-lg border bg-background p-5"><FilterPanel state={active} onChange={update} summary={summary} /></div>
-          <CityBreakdown items={shown} onPick={(city) => update({ location: city, page: 1 })} />
-        </aside>
-        <section ref={listRef} className="space-y-4" aria-label="Search results">
-          {loading && shown.length === 0 ? (
-            <p className="rounded-lg border bg-background p-8 text-muted-foreground">Searching…</p>
-          ) : shown.length === 0 ? (
-            <div className="rounded-lg border bg-background p-8">
-              <p className="font-semibold">No businesses match these filters.</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Try removing a filter, or send a quote request — we will pass it to entertainers who cover your city.
-              </p>
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => update({ ...EMPTY_SEARCH, q: active.q })}>Clear filters</Button>
-                <Button size="sm" asChild><Link to="/request-quote" search={{ city: active.location, date: active.date, kids: active.kids, category: active.category }}>Request quotes instead</Link></Button>
-              </div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <aside className="hidden self-start space-y-6 lg:block">
+            <div className="rounded-lg border bg-background p-5">
+              <FilterPanel state={active} onChange={update} summary={summary} />
             </div>
-          ) : shown.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} showCompare />)}
-          {pages > 1 && <div className="flex items-center justify-center gap-3 pt-4">
-            <Button variant="outline" disabled={active.page <= 1} onClick={() => update({ page: active.page - 1 })}>Previous</Button>
-            <span className="text-sm text-muted-foreground">Page {active.page} of {pages}</span>
-            <Button variant="outline" disabled={active.page >= pages} onClick={() => update({ page: active.page + 1 })}>Next</Button>
-          </div>}
-        </section>
+            <CityBreakdown items={shown} onPick={(city) => update({ location: city, page: 1 })} />
+          </aside>
+          <section ref={listRef} className="space-y-4" aria-label="Search results">
+            {loading && shown.length === 0 ? (
+              <p className="rounded-lg border bg-background p-8 text-muted-foreground">
+                Searching…
+              </p>
+            ) : shown.length === 0 ? (
+              <div className="rounded-lg border bg-background p-8">
+                <p className="font-semibold">No businesses match these filters.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Try removing a filter, or send a quote request — we will pass it to entertainers
+                  who cover your city.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => update({ ...EMPTY_SEARCH, q: active.q })}
+                  >
+                    Clear filters
+                  </Button>
+                  <Button size="sm" asChild>
+                    <Link
+                      to="/request-quote"
+                      search={{
+                        city: active.location,
+                        date: active.date,
+                        kids: active.kids,
+                        category: active.category,
+                      }}
+                    >
+                      Request quotes instead
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              shown.map((vendor) => <VendorCard key={vendor.id} vendor={vendor} showCompare />)
+            )}
+            {pages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  disabled={active.page <= 1}
+                  onClick={() => update({ page: active.page - 1 })}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {active.page} of {pages}
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={active.page >= pages}
+                  onClick={() => update({ page: active.page + 1 })}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
-    </div>
-    {compareIds.length > 0 && <div className="fixed inset-x-4 bottom-20 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-lg bg-foreground p-3 text-background shadow-2xl md:bottom-5">
-      <span className="mr-auto text-sm font-bold">{compareIds.length} selected</span>
-      <Button variant="secondary" size="sm" asChild><Link to="/compare">Compare now</Link></Button>
-      <Button variant="ghost" size="icon" onClick={clearCompare} aria-label="Clear comparison"><X /></Button>
-    </div>}
-    {/* The page's own footer. Its mobile padding keeps the last links clear of the
+      {compareIds.length > 0 && (
+        <div className="fixed inset-x-4 bottom-20 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-lg bg-foreground p-3 text-background shadow-2xl md:bottom-5">
+          <span className="mr-auto text-sm font-bold">{compareIds.length} selected</span>
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/compare">Compare now</Link>
+          </Button>
+          <Button variant="ghost" size="icon" onClick={clearCompare} aria-label="Clear comparison">
+            <X />
+          </Button>
+        </div>
+      )}
+      {/* The page's own footer. Its mobile padding keeps the last links clear of the
         fixed bottom navigation, which is why the page no longer needs its own. */}
-    <Footer />
-  </main>;
+      <Footer />
+    </main>
+  );
 }
 
 export function SessionNotice() {
   const { user, loading } = useSession();
   if (loading || user) return null;
-  return <p className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
-    <Link to="/login" className="font-semibold text-primary underline">Log in</Link> to keep your saved
-    businesses and quote requests in one place. Everything works without an account too.
-  </p>;
+  return (
+    <p className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
+      <Link to="/login" className="font-semibold text-primary underline">
+        Log in
+      </Link>{" "}
+      to keep your saved businesses and quote requests in one place. Everything works without an
+      account too.
+    </p>
+  );
 }

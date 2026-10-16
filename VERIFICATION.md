@@ -4,14 +4,21 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-06, the live site in a real browser and the PHP API on the live host
-  (phone rules on every form that has one, the 223 listings rated exactly 5.0 spread
-  through 4.2–4.7, listing 492 renamed, see iteration 13)
-  (previous: Party builder removed and the nav given Request a quote — iteration 12;
+- Last run: 2026-10-16, **deployed to https://hirepartycharacters.com** — the hero date box
+  opens its calendar from a click anywhere in the field, the Where box suggests states, and
+  the three pinned businesses show their own logo and a picture from their own home page.
+  Verified against the live site (8/8) as well as the dev server (16 search + 6 pinned
+  checks) — iteration 15)
+  (previous: 2026-10-14 — both forms require every answer, iteration 14; 2026-10-07 — the
+  header logo is one image with no text beside it, iteration 14;
+  Party builder removed and the nav given Request a quote — iteration 12;
   the site renamed to Hire Party Characters — iteration 11; the logo mark in
   the header, footer and favicon — iteration 10; nav and results bar — iteration 9;
   production host + local SQLite, quote wizard event type — iteration 8; full local run:
   2026-09-21, dev server on `http://localhost:8080`)
+- Admin console: 2026-10-16, **built and checked locally, NOT deployed** — production still
+  serves the review-queue-only `/admin`, and the PHP has not been linted on the server yet.
+  61 API checks + 35 browser checks, iteration 16
 - MySQL half: 2026-09-21, PHP 8.3 + MariaDB 11.4 in `%TEMP%` — 50 PHP checks + 3 throttle
   checks + 10 runtime response diffs against the Node API, all passing
 - Data: `Database/directory.db` (SQLite) — 10 categories, 507 listings, 351 cities
@@ -33,6 +40,18 @@ node .ohmyagent\check_password_upgrade.mjs  # pbkdf2 interop + legacy hash upgra
 node .ohmyagent\cleanup_test_data.cjs --apply  # remove probe/E2E rows
 node scripts\verify-phone-validation.cjs          # 22 server-side phone/guest checks (needs :8080 up)
 node scripts\verify-phone-form.mjs                # 8 browser checks on the quote and sign-up phone fields
+node scripts\verify-event-type-quote.cjs          # 14 checks on the event-type column, POST and both readers
+node .ps_probe_required_live.mjs                  # live: both forms' required rules, writes nothing
+node .ps_probe_form_rules.mjs                     # live browser: the date question really is required
+node .ps_verify_search_ui.mjs                     # browser: the date box and the state suggestions (needs :8080 up)
+node .ps_verify_pinned_ui.mjs                     # browser: the pinned logos and pictures load
+node .ps_pinned_assets.cjs --apply                # re-check the pinned logos/pictures and write them locally
+node .ps_state_totals.mjs                         # a state's suggestion count vs the total its search returns
+python .ps_verify_live15.py                       # live: all four changes on hirepartycharacters.com
+python .ps_pinned_prod_apply.py                   # live: write the pinned logos/pictures into MySQL, then re-read
+python .ps_pinned_prod.py                         # live: read those three rows, change nothing
+node scripts\verify-admin-panel.cjs               # 61 admin API checks over HTTP (needs :8080 up)
+node scripts\verify-admin-ui.mjs                  # 35 browser checks on the console (creates and removes its own admin)
 
 # PHP API against real MySQL (throwaway MariaDB + portable PHP, see below)
 .ohmyagent\mysql_start.cmd           # MariaDB on 127.0.0.1:3306 (data in %TEMP%\psmysql)
@@ -54,6 +73,204 @@ storing the same data, so it compares the engines rather than the databases.
 ---
 
 ## Run log
+
+### 2026-10-16 — iteration 16: the admin console runs the directory, not just the queue
+
+`/admin` was a review queue with a quote table under it. It is now six tabs — Dashboard,
+Review queue, Listings, Accounts, Categories, Quote requests — and each one writes real
+rows through routes that exist in **both** backends.
+
+The API half has the same shape in `Database/api-handler.cjs` and `deploy/public/api/index.php`:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/admin/listings` | `q`, `status`, `category`, `featured`, `sort`, `page`, `pageSize` (default 25, max 100) |
+| `GET/PATCH/DELETE /api/admin/listings/:id` | the row the dialog edits; PATCH validates exactly like a vendor edit does, and additionally takes `pinRank` and `isFeatured` |
+| `GET /api/admin/users`, `PATCH/DELETE /api/admin/users/:id` | role, suspension, name, phone; delete unattaches the listings and quote requests they made |
+| `POST /api/admin/users/:id/password` | new password (8+), and every session that account holds is revoked |
+| `GET /api/admin/categories`, `PATCH /api/admin/categories/:id`, `PATCH /api/admin/subcategories/:id` | names, taglines, visibility, specialty labels |
+| `GET /api/admin/quotes` | now paged and searchable, joined to the vendor it went to |
+| `DELETE /api/admin/quotes/:id` | remove one request |
+
+**An admin cannot lock themselves out.** Demoting, suspending or deleting your own account
+is refused with 422 (`You cannot remove your own admin access.` / `You cannot delete your
+own account.`) in both runtimes, so the panel cannot be left with no way in.
+
+Three details that only show up if you look for them:
+
+- **`pinRank` refuses to guess.** Only a JSON integer, a float that is a whole number, or a
+  run of digits is accepted — `true`, `2.5` and `"abc"` are refused with a field error
+  instead of quietly becoming 1, 2 and 0.
+- **Deleting an account leaves the directory alone.** `listings.submitted_by` and
+  `quote_requests.user_id` become NULL rather than cascading, so a business the account
+  submitted stays published.
+- **CSV export is not the page you can see.** Every tab walks the filtered set a page at a
+  time (capped at 40 pages of 100) and exports all of it.
+
+```
+node scripts/verify-admin-panel.cjs       ->  61/61  (real HTTP handler)
+node scripts/verify-admin-ui.mjs          ->  35/35  (real browser: sign-in, all six tabs)
+node scripts/e2e-api-smoke.cjs            ->  {"ok":true,"signup":201,"listings":200,"total":46}
+node scripts/verify-event-type-quote.cjs  ->  14/14
+node scripts/verify-phone-validation.cjs  ->  22/22
+npx tsc --noEmit                          ->  clean
+npx eslint <changed files>                ->  clean
+npm run build                             ->  succeeds
+```
+
+| Check | Result |
+| --- | --- |
+| Anonymous and non-admin calls to every new route | 401 / 403, never data |
+| A bad listing edit | 422 naming every bad field at once |
+| Editing a rejected listing | goes back to `pending`, so the queue re-reviews it |
+| A typed city that matches a reference row | stored as that city, so a state search still finds it |
+| Your own role changed to `parent` | 422 `You cannot remove your own admin access.` |
+| Your own account deleted | 422 `You cannot delete your own account.` |
+| A password under 8 characters | refused; the dialog's button stays disabled |
+| A password reset on a live session | the old session stops working |
+| Renaming a specialty label | stored, reverted, and an empty label refused |
+| The featured star in a listings row | flips, survives a reload, flips back |
+| Export CSV on any tab | a file really downloads |
+| Every tab in a real browser | renders real rows, no uncaught page errors |
+
+Worth knowing:
+
+- **A stale dev server cost an hour of the wrong investigation.** The handler is a module
+  required once at boot, so a server started before the API changed answers with the *old*
+  routing while the browser happily runs the new client. Every `/api/admin/*` path returned
+  401 for anonymous calls — the auth gate runs before route matching, in both versions —
+  which looked like "the route exists" and was really "the gate answered, then the old table
+  404'd". If a new route 404s while its neighbour works, restart the dev server first.
+- **The browser run found a bug no API check could.** `UsersSection.quickChange` set the
+  error and then called `load()`, which begins `setError(null)` — so the refusal notice for
+  a self-demotion was wiped a few milliseconds after it appeared and the row silently
+  reverted. The API was right the whole time; only the screen lied. It now reloads on
+  success and keeps the error otherwise, like every other handler in the file.
+- **Nothing here is deployed.** `deploy/public/api/index.php` has not been through `php -l`
+  on the server, because this machine has no PHP — that lint is the first step of the
+  upload, not an optional one.
+
+### 2026-10-16 — iteration 15: the date box opens on a click, and the pins wear their own faces
+
+Four changes, in one request. Two are code, two are data; the data half could not be done
+by the existing pipelines, and why is worth writing down.
+
+**1. The hero date box opens its calendar from anywhere in the field.** `DateField`
+(`src/components/ui/date-field.tsx`) gained `openOnClick`; the input's own click handler
+sets the open state and records that the open came from the field. The calendar glyph still
+focuses the grid so keyboard users land in it, but a click-opened calendar must not steal
+the caret — the visitor clicked in order to *type*. Radix focuses the panel as it opens,
+so `onOpenAutoFocus` calls `preventDefault()` when the open came from the field. The
+calendar also dropped `autoFocus`, which was focusing the grid regardless. The wizard's
+"Where is the party?" date question already had this behaviour from iteration 14; the hero
+box was the one still requiring the glyph.
+
+**2. The Where box suggests states beside cities.** The placeholder said "City or state"
+but the lookup behind it was cities only, so a state name returned nothing. New
+`GET /api/states` (`listStatesWithCounts`) returns every state with its live count, and
+the box filters that list locally — the state row is offered first, labelled
+"*n* businesses statewide", because a state is the broader answer.
+
+Matching a state needed a shared rule, not two: `stateMatchSql()` in
+`Database/queries.js` (mirrored as `state_match_sql()` in PHP) matches the code, the start
+of the name, or — once three letters are typed — the start of *any word* in the name. The
+length guard is what keeps two letters honest: `ca` is California's code and stays
+California, while `carol` finds the Carolinas. `buildFilters` and `cityMatchSql` both go
+through it, so a suggestion the box offers is a search that works.
+
+**3–4. The pinned cards show their own logo and a picture from their own home page.**
+`icon_url` and `image_url` are plain columns; what was in them was wrong or empty.
+`Database/fetch-icons.cjs` and `fetch-images.cjs` could not do this: they only touch the
+local SQLite file, production is MySQL on SiteGround, and there is no MySQL path from
+this machine. The values were therefore read off each site by hand and written with
+`.ps_pinned_assets.cjs --apply`, which refuses to write a URL that does not answer with
+an image.
+
+| Pinned business | Logo (`icon_url`) | Picture (`image_url`) |
+| --- | --- | --- |
+| Party Characters For Hire | `assets/images/logo.webp` — the mark in their header | `assets/images/about_us.webp` — the team photo on their home page (the page publishes no `og:image`) |
+| Party Characters For Kids | `themes/pcfk/assets/brand/party-gift-mark.webp` — the logo their own JSON-LD declares | `pcfk-assets/generated/2026-10-05/fresh/home-superhero-far-desktop.webp` — their `og:image`; the stored path 404'd |
+| Characters For Party (New York) | `themes/cfp-v2/assets/media/brand-logo.webp` — the logo in their header | kept — already their `og:image`, still 200 |
+
+`charactersforhire.com` is the odd one out and stays unfixed: it answers every scripted
+request with Cloudflare's challenge (403, "Just a moment..."), and a real browser gets
+the same interstitial — so no logo or home-page picture can be captured from it at all.
+Its row is also **not** in `PINNED_SLUGS`; it holds `pin_rank = 1` and stays in the
+directory as an ordinary listing.
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` | clean |
+| `node .ps_verify_search_ui.mjs` | 16/16 — click anywhere opens the calendar, focus stays in the box, typing and picking both still work, the carried-date note appears, `tex` offers Texas, `ca` stays California, `carol` finds the Carolinas, `chicago` still finds the city, choosing a state searches it |
+| `node .ps_verify_pinned_ui.mjs` | 6/6 — all three cards' avatar *and* picture are the business's own and both report `naturalWidth > 0` in the browser |
+| `node .ps_pinned_assets.cjs` (dry run) | 6 URLs, all `200 image/*`, nothing written on failure |
+| `node .ps_state_totals.mjs` | a state's suggestion count vs its search total (the three pins lead every search and are counted in it) |
+| `.ps_tests.cmd` | `PHONE=0` 22/22, `EVENTTYPE=0` 14/14, `SMOKE=0` |
+| Visual | `.ps-assets/shots/` — `date-open.png`, `where-states.png`, `pinned-row.png`, `pinned-cards.png` |
+
+Worth knowing:
+
+- **A state search returns its own rows plus the pins.** Texas reports 119 against the
+  state's 117: the two pin rows sit in New York and are lifted into every result set. The
+  suggestion's number is the state's own count, the results bar's is the search total, and
+  the two differ by exactly the pins. Not a new behaviour — the pins have always done
+  this — but the gap is visible now that states are offered by name.
+- **California and Texas step the family's general row aside** (their per-city rows are on
+  screen), Ohio, New York and any city with no row of its own keep it. That is
+  `family_guard()` doing its job, not a bug.
+- **The production rows still have to be updated by hand.** `.ps_pinned_assets.cjs`
+  prints the three `UPDATE` statements; they have not been run against MySQL.
+
+*(Superseded the same day — see the deployment note below.)*
+
+### 2026-10-16 — iteration 15, deployed: hirepartycharacters.com
+
+All four changes are live, and the three pinned rows were pointed at their own logo and
+their own home-page picture on production MySQL.
+
+| Step | Result |
+| --- | --- |
+| `npm run build` | clean |
+| site deploy | `index.html` identical to the build, 81 assets uploaded, 43 alias files refreshed, all 5 root files (`favicon.svg`, `logo-characters-for-hire.png`, `logo-mark.png`, `logo.png`, `robots.txt`) md5-checked against the build — the SPA rewrite answers a missing root file with a 200 and the HTML shell, so the hash is the only proof |
+| API deploy | `php -l` on the staged file on the server: **No syntax errors detected**; live md5 matches the local file. This is the lint this machine cannot run — there is no PHP here |
+| production data | the three `UPDATE`s applied, re-read afterwards: `rows still wrong: 0` |
+| `python .ps_verify_live15.py` | 8/8 against `https://hirepartycharacters.com` |
+| `python .ps_verify_live_endpoints.py` | live and local agree on every count that the shared state rule touches: categories 10 (no filter, `Texas`, `Chicago` — a location must not drop a category), listings 493 total, `Texas` 119, `Chicago` 41, `Ohio` 37, `superheroes`+`Texas` 39 |
+
+The live checks, as run:
+
+- `/api/states` → 15 rows, first `{"code": "TX", "name": "Texas", "listing_count": 117}`
+- a live `location=Texas` search reaches 119 listings (117 Texas + the two pins)
+- clicking the left of the hero date box opens the grid and focus stays on `party-date`;
+typing `12-25-2026` still lands in the box
+- `tex` in the Where box → `Texas — 117 businesses statewide`
+- all three pinned cards: their logo as the avatar and their home-page picture as the
+  card image, every one `naturalWidth > 0` on the live page
+
+Production rows before → after:
+
+| Slug | `icon_url` | `image_url` |
+| --- | --- | --- |
+| `party-characters-for-hire` | `favicon.ico` → `assets/images/logo.webp` | `NULL` → `assets/images/about_us.webp` |
+| `party-characters-for-kids` | `uploads/2023/05/favicon.png` → `themes/pcfk/assets/brand/party-gift-mark.webp` | `uploads/2023/06/…-1024x576.webp` (404) → `pcfk-assets/generated/2026-10-05/fresh/home-superhero-far-desktop.webp` |
+| `party-characters-for-kids-new-york` | `uploads/2022/11/favicon-300x300.png` → `themes/cfp-v2/assets/media/brand-logo.webp` | unchanged — already their `og:image` and still 200 |
+
+`charactersforhire.com` (the row with `pin_rank = 1`, not in `PINNED_SLUGS`) is still
+untouched: it serves Cloudflare's challenge to fetch, to a scripted request and to a real
+browser alike, so there is no logo or home-page picture to capture. Its card keeps the
+initials fallback.
+
+For Party Characters For Hire a choice was made: their home page has no `og:image`, and
+its pictures are the hero (`assets/images/banner.webp`, a 940x370 strip, used as a CSS
+background), the hero video's poster (`assets/images/posters/default.webp`, only 320x180)
+and the About Us photo (`assets/images/about_us.webp`, 1076x792). The About Us photo won on
+resolution and shape — it is the closest of the three to the card's 700x460. Swapping to
+the banner is one `UPDATE listings SET image_url =…` if that reads better.
+
+One thing this turned up that is **not** new: `/api/stats` does not exist on the PHP API,
+only on the Node one. `origin/main`'s `deploy/public/api/index.php` has no such route
+either and nothing in the frontend calls it, so the live 404 is the status quo, not a
+regression from this deploy.
 
 ### 2026-10-07 — iteration 14: the whole logo is the image, and nothing is set beside it
 
@@ -111,7 +328,74 @@ Worth knowing:
   header's `bg-background/90` bar and on the footer's `bg-background/95` pill the artwork
   now sits on whatever is behind it.
 
-### 2026-10-06 — iteration 13: phone fields that refuse letters, and ratings that stop at 5.0
+### 2026-10-14 — iteration 14: both forms ask for every answer
+
+Asked for: *"make every field required in both end listing form and request quote"*.
+Two questions were settled first — the **starting price stays optional** (a business may
+genuinely not have one), and the **event date is required** like every other answer.
+
+**1. The quote wizard asks eleven questions and now needs all eleven.** `quoteSchema`
+gained rules for `phone` (it had been optional), `eventDate`, `guestCount` and
+`childAge`, and `details` needs at least 10 characters. The date step no longer offers
+"Skip this if you have not settled on a date yet." — its hint is now "The day you are
+planning the party for." — and the phone hint no longer says "Optional, but…".
+`Next` already validated the step it was on (`form.trigger(current.field)`), so the rule
+below is what made it refuse: the wizard will not open the next question until the one on
+screen is answered, and a rejection from an earlier question lands the visitor back on it.
+
+**2. The listing form requires everything but the price.** Name, category, city, website,
+phone, booking email and description are all required — a check in `BusinessForm` reports
+all of them at once, the inputs carry `required`, and the labels lost their
+"(optional)" suffix. **"Starting price (optional)" is deliberately untouched.**
+
+**3. Both backends say the same thing.** `validateQuoteRequest` and `validateSubmission`
+in `Database/api-handler.cjs` and the three equivalent routes in
+`deploy/public/api/index.php` (`POST /api/quote-requests`, `POST /api/listings`,
+`PATCH /api/vendor/listings/:id`) enforce the new rules with per-field messages. The
+edit route was included on purpose: it is the one a vendor uses to blank a field *after*
+approval, and it now passes `description` through instead of silently dropping it.
+
+```
+node scripts/verify-phone-validation.cjs    ->  22/22  (server side, Node)
+node scripts/verify-event-type-quote.cjs    ->  14/14  (column, POST, both readers)
+node scripts/e2e-api-smoke.cjs              ->  {"ok":true,"signup":201,"listings":200,"total":46}
+node .ps_probe_required_live.mjs            ->  29/29  (live PHP, nothing written)
+node .ps_probe_form_rules.mjs               ->  20/20  (live build, real browser)
+npx tsc --noEmit                            ->  clean
+npm run build                               ->  succeeds; live entry md5 matches, php -l clean on the server
+```
+
+| Check | Result |
+| --- | --- |
+| An empty quote against the live PHP API | 422 naming all eleven fields, `id` absent — nothing stored |
+| The same request with one answer too short | 422 on `details` **only**, which is what proves the other ten passed |
+| A quote with no phone / no date | 422 with `Please enter your phone number.` / `Please pick the date of the party.` |
+| An empty listing against the live PHP API | 422 naming name, category, city, website, phone, email, description |
+| A complete listing whose name is already in the directory | 409 — validation passed, no row written |
+| The same complete payload with `priceFrom` blank | still 409, so the price is still optional |
+| Live browser: `Next` on an empty date | message shown, wizard stays on "When is the party?" |
+| Live browser: a date of 12-24-2026 | moves on to "How many children are you expecting?" |
+| The deployed `vendor-pages` chunk | "Starting price (optional)" present; "Website (optional)", "Phone (optional)", "Booking email (optional)" gone |
+| Production after the run | 508 active listings, 0 pending, 0 probe accounts |
+
+Worth knowing:
+
+- **Two scripts asserted the opposite rule** and had to be rewritten, not worked around:
+  `verify-phone-validation.cjs` had four "a blank phone is still accepted" rows and
+  `verify-event-type-quote.cjs` had "a request without an event type stores NULL". They now
+  assert the refusals and the messages, and the event-type script's probes each send a
+  complete request with one field varied, so a failure names the rule that broke rather
+  than the first missing answer. A check that contradicts the rule is a bug in the check.
+- **The live listing route needs a session**, so the probe signs up
+  `rules-probe@example.test`, asserts it created no listing, and
+  `%TEMP%\ps_probe_cleanup.py` deletes the account (and its sessions, favourites and any
+  listing it owned) over SSH. The happy path is proven without writing anything at all by
+  submitting a complete payload under a name that is already published: the 409 can only
+  come back after validation has passed.
+- **The date has no "not sure yet" answer any more.** That is the rule that was asked for;
+  the field still takes any real future date, typed as `mm-dd-yyyy` or picked.
+
+
 
 Three changes to the live site, each one verified against production rather than
 locally.
@@ -124,7 +408,9 @@ API's `validateQuoteRequest`/`validateSubmission`/`validateCredentials` and the 
 equivalents only capped its length. A shared rule now lives in `src/lib/validation.ts`
 (`phoneError`, `sanitisePhoneInput`, `normalisePhone`) and is mirrored server-side in
 `Database/api-handler.cjs` and `deploy/public/api/index.php`, because the browser is
-never trusted. A phone is optional everywhere, so blank still passes.
+never trusted. A phone is optional everywhere at this point, so blank still passes —
+**iteration 14 later made it required on the quote wizard and the business forms, leaving
+sign-up and profile optional.**
 
 - Allowed: digits, spaces, `+`, `-`, `(`, `)`, `.`. At most one `+`, and only leading.
 - Digits after stripping formatting: **7–15**. Below that the field says so; a properly
@@ -181,7 +467,7 @@ python %TEMP%\ps_verify_live_php.py            ->  14/14  (live PHP API, rows de
 | `POST /api/quote-requests` with `"not-a-phone"` | 422 with a `phone` message (nothing stored) |
 | Live PHP, all five write paths (quote, sign-up, profile, listing create, listing edit) | 422 with a `phone` message each, and a valid number stored normalised |
 | Live PHP rows created to prove the happy path | deleted again; production shows 507 listings, 0 probe accounts, 0 probe quote requests |
-| A blank phone on all four | still accepted (the field is optional) |
+| A blank phone on the sign-up and profile forms | still accepted (optional there) |
 | Guest count of `"a dozen"` | 422 on both the Node and the live PHP API |
 | Live listings still rated 5.0 | 0 |
 | Live band 4.2–4.7 / below 4.2 / unrated | 315 / 36 / 27 |

@@ -1,9 +1,12 @@
 /**
- * Round-trips the quote wizard's new "What type of event are you planning?"
+ * Round-trips the quote wizard's "What type of event are you planning?"
  * answer through everything that has to carry it: the SQLite column, the
  * POST /api/quote-requests validation and insert, and the reader the vendor
  * dashboard uses. The probe rows are deleted again, so quote_requests keeps
  * the shape the other verify scripts expect.
+ *
+ * Every question in the wizard is required, so each probe below sends a complete
+ * request and varies only the field it is testing.
  *
  * Run: node scripts/verify-event-type-quote.cjs
  */
@@ -79,23 +82,29 @@ function post(port, path, body) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = server.address().port;
   const email = `event-type-${crypto.randomUUID()}@example.test`;
+  /** A request with every answer the wizard now requires, then the probe's own twist. */
+  const complete = (extra) => ({
+    name: "Event Type Probe",
+    email,
+    phone: "+1 555 010 2030",
+    city: "Dallas, TX",
+    eventDate: "2026-11-14",
+    guestCount: "12",
+    childAge: "Mostly age 6",
+    eventType: "Birthday (Child)",
+    categorySlug: "superheroes",
+    budget: "$400 – $700",
+    details: "Verifying that the event type survives the round trip.",
+    ...extra,
+  });
 
   try {
     // 1. The answer the new first question sends is stored verbatim.
     const sent = "Birthday (Child)";
-    const ok = await post(port, "/api/quote-requests", {
-      name: "Event Type Probe",
-      email,
-      city: "Dallas, TX",
-      eventDate: "2026-11-14",
-      guestCount: "12",
-      childAge: "Mostly age 6",
+    const ok = await post(port, "/api/quote-requests", complete({
       eventType: sent,
-      categorySlug: "superheroes",
-      budget: "$400 – $700",
-      details: "Verifying that the event type survives the round trip.",
       vendorSlug: "a-dash-of-magic-events",
-    });
+    }));
     check(
       "POST /api/quote-requests accepts an eventType",
       ok.status === 201,
@@ -116,37 +125,26 @@ function post(port, path, body) {
       `category=${row?.category_slug} child_age=${row?.child_age} guests=${row?.guest_count}`,
     );
 
-    // 2. An older client that sends no eventType still works, storing NULL — the
-    //    column is additive and the form is the only thing that changed.
-    const legacy = await post(port, "/api/quote-requests", {
-      name: "No Event Type Probe",
-      email,
-      city: "Dallas, TX",
-      categorySlug: "magicians",
-      details: "A request shaped like the ones the previous form sent.",
-    });
+    // 2. Every question is required now, event type included: a request the
+    //    business cannot act on is refused instead of stored half-answered.
+    const storedForThisEmail = () =>
+      queries.listRecentQuoteRequests(50).filter((item) => item.email === email).length;
+    const storedBefore = storedForThisEmail();
+    const missing = await post(port, "/api/quote-requests", complete({ eventType: "" }));
     check(
-      "a request without an eventType still submits",
-      legacy.status === 201,
-      `status ${legacy.status}`,
+      "a request without an eventType is refused",
+      missing.status === 422 && missing.body.fields?.eventType === "Pick the type of event you are planning.",
+      `status ${missing.status} fields=${JSON.stringify(missing.body.fields)}`,
     );
-    const legacyRow = queries.listRecentQuoteRequests(5).find((item) => item.id === legacy.body.id);
     check(
-      "the missing event type is stored as NULL",
-      legacyRow?.event_type === null,
-      `event_type=${JSON.stringify(legacyRow?.event_type)}`,
+      "the refused request was not stored",
+      missing.body.id === undefined && storedForThisEmail() === storedBefore,
+      `id=${JSON.stringify(missing.body.id)}, rows for this run ${storedBefore} -> ${storedForThisEmail()}`,
     );
 
     // 3. The server holds event_type to its own column width (VARCHAR(120)) —
     //    narrower than the other free-text fields' limit.
-    const atLimit = await post(port, "/api/quote-requests", {
-      name: "Column Width Probe",
-      email,
-      city: "Dallas, TX",
-      eventType: "x".repeat(120),
-      categorySlug: "clowns",
-      details: "A value exactly as long as the event_type column allows.",
-    });
+    const atLimit = await post(port, "/api/quote-requests", complete({ eventType: "x".repeat(120) }));
     check(
       "an eventType of exactly 120 characters is accepted",
       atLimit.status === 201,
@@ -157,14 +155,7 @@ function post(port, path, body) {
       ["past the column width", 121],
       ["past every field limit", 2500],
     ]) {
-      const rejected = await post(port, "/api/quote-requests", {
-        name: "Too Long Probe",
-        email,
-        city: "Dallas, TX",
-        eventType: "x".repeat(length),
-        categorySlug: "clowns",
-        details: "An event type no column should ever hold.",
-      });
+      const rejected = await post(port, "/api/quote-requests", complete({ eventType: "x".repeat(length) }));
       check(
         `an eventType ${label} is rejected with a field error`,
         rejected.status === 422 && Boolean(rejected.body.fields?.eventType),
