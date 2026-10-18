@@ -186,7 +186,10 @@ export function VendorProfilePage({ vendor }: { vendor: Vendor }) {
     </section>
     <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3">
-        <Button onClick={() => setQuote(true)}>Request quote</Button>
+        {/* The page's main action on a phone, where the pills beside it are already
+          full height: a step up from the default button so it reads as the one to
+          press rather than a third label. */}
+        <Button onClick={() => setQuote(true)} className="h-11 px-5 text-base font-semibold">Request quote</Button>
         {vendor.website && (
           <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium">
             {websiteDomain(vendor.website)}

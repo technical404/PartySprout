@@ -59,6 +59,7 @@ import {
   type State,
   type Vendor,
 } from "@/lib/marketplace-data";
+import { rememberCity } from "@/lib/last-city";
 import { useSaved } from "@/lib/saved";
 import { useSession, workspacePath } from "@/lib/session";
 import { Brand, Footer } from "./footer";
@@ -74,6 +75,11 @@ export function SiteHeader() {
   const workspace = workspacePath(user);
   const firstName = user?.name?.split(" ")[0] ?? "";
   const closeAndLogout = () => void logout();
+  // Controlled so a menu link can close the sheet on its way to the next page. Left
+  // to Radix it stayed open over the page it had just opened, because the header —
+  // and so the sheet — outlives every navigation.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <>
@@ -84,20 +90,16 @@ export function SiteHeader() {
           Keep the two numbers in step. */}
         <div className="relative mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <Brand />
-          {/* Below sm the row has no space for the full CTA set, so the handset and
-            the two words carry the same link in the middle of the header. It is
-            centred on the row rather than left in a justify-between gap, so it sits
-            in the same place whatever the logo and the menu button measure. The
-            number is left to the wider breakpoints, where there is room for it, and
-            the accessible name is still the whole phrase. */}
-          <span className="absolute left-1/2 -translate-x-1/2 sm:hidden">
-            <Button asChild className="call-button h-auto px-3 py-2 text-sm font-bold">
-              <a href="tel:+16416663945" aria-label="Call us (641) 666-3945">
-                <Phone className="call-icon" />
-                Call us
-              </a>
-            </Button>
-          </span>
+          {/* Below sm the row is Brand | call | menu, so the handset and the number
+            get a place of their own and can overlap neither. From sm up the header's
+            own call button carries the same link; the words "Call us" only fit beside
+            the number from lg. The accessible name is the whole phrase at every width. */}
+          <Button asChild className="call-button h-auto px-3 py-2 text-sm font-bold sm:hidden">
+            <a href="tel:+16416663945" aria-label="Call us (641) 666-3945">
+              <Phone className="call-icon" />
+              (641) 666-3945
+            </a>
+          </Button>
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
             <Link to="/explore" className="nav-link">
               Explore
@@ -143,7 +145,7 @@ export function SiteHeader() {
               </a>
             </Button>
           </div>
-          <Sheet>
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open menu">
                 <Menu />
@@ -157,24 +159,45 @@ export function SiteHeader() {
                 <SheetDescription>Everything for an unforgettable party.</SheetDescription>
               </SheetHeader>
               <nav className="mt-8 grid gap-2">
-                <MobileLink to="/explore">Explore</MobileLink>
-                <MobileLink to="/request-quote">Request a quote</MobileLink>
-                <MobileLink to="/list-your-business">List your business</MobileLink>
+                <MobileLink to="/explore" onNavigate={closeMenu}>
+                  Explore
+                </MobileLink>
+                <MobileLink to="/request-quote" onNavigate={closeMenu}>
+                  Request a quote
+                </MobileLink>
+                <MobileLink to="/list-your-business" onNavigate={closeMenu}>
+                  List your business
+                </MobileLink>
                 {user ? (
                   <>
-                    <MobileLink to={workspace}>Hi, {firstName}</MobileLink>
+                    <MobileLink to={workspace} onNavigate={closeMenu}>
+                      Hi, {firstName}
+                    </MobileLink>
                     <button
                       type="button"
-                      onClick={closeAndLogout}
+                      onClick={() => {
+                        closeMenu();
+                        closeAndLogout();
+                      }}
                       className="rounded-lg px-4 py-3 text-left text-base font-semibold hover:bg-muted"
                     >
                       Log out
                     </button>
                   </>
                 ) : (
-                  <MobileLink to="/login">Log in</MobileLink>
+                  <MobileLink to="/login" onNavigate={closeMenu}>
+                    Log in
+                  </MobileLink>
                 )}
               </nav>
+              {/* The menu covers the header, so the number needs its own way out of
+                here too — with the words as well, because this button has the room. */}
+              <Button asChild className="call-button mt-6 h-12 w-full text-base font-bold">
+                <a href="tel:+16416663945" onClick={closeMenu} aria-label="Call us (641) 666-3945">
+                  <Phone className="call-icon" />
+                  Call us (641) 666-3945
+                </a>
+              </Button>
             </SheetContent>
           </Sheet>
         </div>
@@ -193,9 +216,23 @@ type MobileLinkTarget =
   | "/list-your-business"
   | "/admin";
 
-function MobileLink({ to, children }: { to: MobileLinkTarget; children: ReactNode }) {
+function MobileLink({
+  to,
+  children,
+  onNavigate,
+}: {
+  to: MobileLinkTarget;
+  children: ReactNode;
+  onNavigate?: () => void;
+}) {
+  // Closing here rather than after the route lands is what lets Radix play its own
+  // exit animation: the menu is already sliding away as the next page appears.
   return (
-    <Link to={to} className="rounded-lg px-4 py-3 text-base font-semibold hover:bg-muted">
+    <Link
+      to={to}
+      onClick={onNavigate}
+      className="rounded-lg px-4 py-3 text-base font-semibold hover:bg-muted"
+    >
       {children}
     </Link>
   );
@@ -1063,6 +1100,13 @@ export function SearchResults({
   const listRef = useRef<HTMLElement | null>(null);
   const { compareIds, clearCompare } = useSaved();
   const searchBarHidden = useHideStickySearchBar();
+
+  // The city this search is for, kept for the quote form a listing will open: a
+  // listing page cannot see the search it was reached from, and the party's city is
+  // the visitor's, not the performer's.
+  useEffect(() => {
+    if (active.location) rememberCity(active.location);
+  }, [active.location]);
 
   useEffect(() => {
     void fetchDirectorySummary().then(setSummary);

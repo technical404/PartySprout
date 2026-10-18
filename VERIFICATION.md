@@ -90,6 +90,100 @@ very first browser run (the dialog simply stayed open) until the server was rest
 
 ## Run log
 
+### 2026-10-18 — iteration 18: the header's number, a menu that leaves, a date you can pick
+
+Five things reported from a phone-width pass over the live site, and one asked for: the
+operator's newest site added to the directory and put first.
+
+| What was wrong | What it is now |
+| --- | --- |
+| The header's call button said *Call us* and no number, and floated absolutely centred over the row | It carries **(641) 666-3945** at every width, and sits in the row as Brand \| call \| menu. The words *Call us* only fit from `sm` up; the accessible name is the whole phrase everywhere. |
+| The menu sheet stayed open over the page it had just opened | `open` is controlled and every link closes it on its way out. The header outlives navigation, so Radix never saw a reason to close; closing on the click also lets its exit animation play. |
+| The menu had no way to call | A *Call us (641) 666-3945* button, full width at the foot of the sheet. |
+| The first question's dropdown was 260px beside 308px for every other control | `w-full` on the event-type `<select>`. |
+| The date box opened a calendar, and no day could be picked from it | Fixed at the root — see below. |
+| The listing page's *Request quote* button was 36px tall while the pills beside it were 44 | 44px, with a step up in type: it is the page's main action on a phone. |
+| A listing's quote form asked *Where is the party?* with an empty box, even though the visitor had just searched a city | `src/lib/last-city.ts` remembers the city the last search was for (`localStorage`, best effort). `SearchResults` writes it, `RequestQuoteForm` reads it, and an explicit `prefill` still wins. |
+
+**The date box was the real bug.** Clicking the box opened the calendar, but pressing a day
+did nothing and the calendar stayed open. `Calendar` passed its `components` map as inline
+arrow functions, so every render handed DayPicker a new component *type* and React rebuilt
+the calendar's DOM with it. In the quote form the mouse-down blurred the input, the form
+re-rendered, and the day button the visitor had pressed down on was replaced before
+mouse-up — the events landed (`pointerdown`, `mousedown`, `pointerup`, `mouseup`, all on the
+grid) but no `click` was ever fired, because a click needs the same target down and up. The
+five components are now module-level constants in `src/components/ui/calendar.tsx`, so a
+parent re-render no longer touches the calendar's nodes. Both `openOnClick` fields — the
+quote form's and the hero search panel's — now pick a day, and the caret still stays in the
+box, which is what that mode is for.
+
+**The newest business.** *Something Different Party Rental*
+(`somethingdifferentpartyrental.com`) is one sponsored row, filed under New York, NY, in six
+categories (superheroes primary), from $220, with a description written from the site's own
+copy (133+ characters, 17+ cities, the six families, the cities it names) and the picture
+its homepage uses. It leads `PINNED_SLUGS` in both engines, so it heads every category,
+every city page and every sort — the pin is by slug, which is what widens the filters;
+`pin_rank` only breaks ties inside the result set.
+
+The site's `<title>` reads *partycharactersforkids* and its number (855-705-2799) is already
+on the sixteen `charactersforparty.com` rows, so the listing is named after the domain the
+operator gave rather than claiming a second company name. Renaming it in the console is
+fine; changing the *slug* means changing `PINNED_SLUGS` in `deploy/public/api/index.php` and
+`Database/queries.js` with it.
+
+**The two databases number their own rows.** Production took the new row as **#511**; this
+database made it **#533** (its sequence sits 17 ahead of `MAX(id)`, and always has). The
+ids have drifted apart before — production holds `party-characters-for-hire` as #510, this
+database as #516 — so `Database/something-different-party-rental.sql` deliberately asserts
+no id, and the row is inserted without one. `Database/mysql-data.sql` therefore cannot
+simply be re-imported onto production any more; a targeted file is the way, and this is
+recorded under *Known remaining gaps*.
+
+```
+node scripts/verify-mobile-viewer.mjs                        ->  15/15   (local)
+PS_BASE=https://hirepartycharacters.com  (the same)          ->  15/15   (live)
+node scripts/verify-date-picker.mjs                          ->   7/7    (local)
+PS_BASE=https://hirepartycharacters.com  (the same)          ->   7/7    (live)
+npx tsc --noEmit                                             ->  clean
+node scripts/verify-quote-dialog.mjs                         ->  QuoteDialog OK
+node scripts/verify-event-type-quote.cjs                     ->  14/14
+node scripts/verify-phone-validation.cjs                     ->  22/22
+node scripts/verify-admin-ui.mjs                             ->  57 checks, 0 failed
+node scripts/verify-admin-panel.cjs                          ->  ok, 69 checks
+node scripts/verify-change-password.cjs                      ->  ok, 17 checks
+node scripts/verify-playwright.mjs                           ->  ok
+```
+
+The two new checks assert measurements rather than eyeball them — a number that no longer
+fits beside the logo (measured at 390px and 320px), a menu that is gone once the next page
+arrives, one control of a different size hiding in a form of ten steps, a day that really
+lands in the box, and a listing's quote form that opens on the city the visitor searched.
+`scripts/verify-date-picker.mjs` fails against the code before this change; that is the
+regression it exists for.
+
+Lint, on the files this touched: `marketplace.tsx` 1 (a pre-existing fast-refresh warning),
+`calendar.tsx` 0, `last-city.ts` 0, `pages.tsx` 97 before and after, and `quote-form.tsx`
+**89 before, 62 after** — the additions were folded into the layout prettier asks for, which
+also cleared the same complaint in the lines around them. The repository as a whole is not
+`prettier`-clean; that is the state it arrived in.
+
+Deploy: assets, shell and aliases refreshed and hashed; `api/index.php` uploaded as `.new`,
+linted on the server (`No syntax errors detected`), swapped, live md5 matching the local
+file. The listing went in through a one-off tool staged outside `public_html`
+(`apply` / `verify` / `set-image` / `undo`, the last of which is the way back), removed after
+its run; the six live searches checked before and after are listed in the entry above.
+
+**What this iteration did not prove, and two scripts already stale.** The PHP half of the
+pin is proven by `php -l` on the server, by the live API leading with the new row on every
+filter tried, and by mirroring the Node code line for line — not by running the PHP against
+MySQL here (the local harness is not in this repository). Two verifiers fail for reasons
+that predate this change, both on the date box that iteration 15 replaced with
+`DateField`: `scripts/verify-quote-form-live.mjs` still waits for
+`form input[type="date"]`, and `scripts/verify-search-field.mjs` still looks for a field
+labelled *Date*. Neither is in the current gate; both are worth repairing or deleting.
+
+---
+
 ### 2026-10-17 — iteration 17: you can change your own password, and the console can make accounts
 
 Two things were missing rather than broken. The console's per-row **Password** button already
@@ -1125,6 +1219,15 @@ for every public read (`check_php_vs_node.mjs` 10/10). What is still unproven is
   signed out, but the local PHP+MariaDB harness that would run the whole flow
   (`php_e2e.mjs`, `check_php_vs_node.mjs`) is not in this repository, so the create and
   change-password paths are only proven in the Node backend and in the browser against it.
+- **`Database/mysql-data.sql` can no longer be re-imported over production.** Production
+  numbers its own rows and its ids have drifted from this database: it holds
+  `party-characters-for-hire` as #510 and `something-different-party-rental` as #511, this
+  database as #516 and #533, and anonymous signups have taken ids on one side only. The
+  dump is still the right artifact for a *fresh* database (README step 3, load schema then
+  data); changing a live one takes a targeted file like
+  `Database/something-different-party-rental.sql`, which names no id. Anything keyed by id
+  across the two (`listing_categories` included) has to be written from the local row, not
+  assumed.
 
 ## Data health snapshot (2026-09-21)
 
@@ -1143,3 +1246,10 @@ Database/directory.db after `node .ohmyagent/cleanup_test_data.cjs --apply`
 partyspark_local (MariaDB copy, after `.ohmyagent/php_e2e_cleanup.sql`)
   listings 491, users 1, quote_requests 0, favorites 0, sessions 0 — same shape as SQLite
 ```
+
+That block is the 2026-09-21 state and is kept as history. As of 2026-10-18 this
+`Database/directory.db` holds **509 rows, all active**, 17 of them with a published price;
+four carry `pin_rank = 1` (`characters-for-hire`, `party-characters-for-kids`,
+`party-characters-for-kids-new-york`, `something-different-party-rental`), and the other
+three pins are ordered by slug in code, not by rank. Production holds the same 509 rows,
+numbered differently (see *Known remaining gaps*).

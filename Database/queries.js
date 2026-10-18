@@ -185,6 +185,7 @@ function listCities({ countryId, stateId } = {}) {
  * listings.pin_rank so that neither a data reload nor a dashboard edit can move them.
  */
 const PINNED_SLUGS = [
+  "something-different-party-rental", // Something Different Party Rental (somethingdifferentpartyrental.com)
   "party-characters-for-hire", // Party Characters For Hire (partycharactersforhire.com)
   "party-characters-for-kids-new-york", // Characters For Party
   "party-characters-for-kids", // Party Characters For Kids

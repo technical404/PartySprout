@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CONTROL_AREA_CLASS, CONTROL_CLASS } from "@/components/ui/control";
 import { DateField } from "@/components/ui/date-field";
+import { lastSearchedCity } from "@/lib/last-city";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -287,7 +288,15 @@ export function RequestQuoteForm({
   }, []);
 
   const defaults = useMemo<QuoteFormValues>(
-    () => ({ ...EMPTY_FORM, ...prefill, category: prefill?.category ?? defaultCategorySlug }),
+    () => ({
+      ...EMPTY_FORM,
+      ...prefill,
+      // Whoever sent the visitor here knows their city and this form did not: a
+      // listing's quote form asks where the party is, and the answer is where the
+      // visitor is, so it starts from the city they last searched.
+      city: prefill?.city || lastSearchedCity(),
+      category: prefill?.category ?? defaultCategorySlug,
+    }),
     [defaultCategorySlug, prefill],
   );
 
@@ -451,30 +460,33 @@ export function RequestQuoteForm({
             <FormField
               control={form.control}
               name="eventType"
-              render={({ field }) => question(current.hint, (
-                <select
-                  {...field}
-                  className={`${CONTROL_CLASS} border border-input bg-transparent shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
-                >
-                  <option value="" disabled>
-                    Choose one
-                  </option>
-                  <optgroup label="Popular">
-                    {POPULAR_EVENT_TYPES.map((event) => (
-                      <option key={event} value={event}>
-                        {event}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="All events">
-                    {ALL_EVENT_TYPES.map((event) => (
-                      <option key={event} value={event}>
-                        {event}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              ))}
+              render={({ field }) =>
+                question(
+                  current.hint,
+                  <select
+                    {...field}
+                    className={`${CONTROL_CLASS} w-full border border-input bg-transparent shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                  >
+                    <option value="" disabled>
+                      Choose one
+                    </option>
+                    <optgroup label="Popular">
+                      {POPULAR_EVENT_TYPES.map((event) => (
+                        <option key={event} value={event}>
+                          {event}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="All events">
+                      {ALL_EVENT_TYPES.map((event) => (
+                        <option key={event} value={event}>
+                          {event}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>,
+                )
+              }
             />
           )}
 
@@ -553,13 +565,20 @@ export function RequestQuoteForm({
             <FormField
               control={form.control}
               name="eventDate"
-              render={({ field }) => question(current.hint, (
-                <DateField
-                  min={todayISO()}
-                  className={CONTROL_CLASS}
-                  {...field}
-                />
-              ))}
+              render={({ field }) =>
+                question(
+                  current.hint,
+                  <DateField
+                    min={todayISO()}
+                    className={CONTROL_CLASS}
+                    {...field}
+                    // A tap anywhere in the box opens the calendar, which is what a
+                    // date question is expected to do; typing still works, because the
+                    // calendar does not take the caret away from the box.
+                    openOnClick
+                  />,
+                )
+              }
             />
           )}
 

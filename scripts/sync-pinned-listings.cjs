@@ -21,6 +21,10 @@ const PINNED = [
   // Sponsored as the one listing representing this business, which is otherwise
   // present once per city. allCategories stays off: it sells six categories.
   { id: 492, website: 'charactersforparty.com', allCategories: false },
+  // The newest site of the same operator, added by scripts/add-something-different.cjs
+  // and pinned first by its slug in both engines rather than by pin_rank; the flag is
+  // kept here so a future export cannot reset it. Six categories, as its site lists.
+  { id: 533, website: 'somethingdifferentpartyrental.com', allCategories: false },
 ];
 
 init();
