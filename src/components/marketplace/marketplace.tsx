@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
+import { categoryLabel } from "@/lib/labels";
 import {
   EMPTY_SEARCH,
   fetchCategories,
@@ -271,17 +272,6 @@ function MobileNavLink({
       {label}
     </Link>
   );
-}
-
-/**
- * "non-mascot-characters" -> "Non Mascot Characters". Used to fill the search box
- * with the category that was searched before the category list has arrived, which
- * is a moment later; the real name then replaces it if it differs.
- */
-function categoryLabel(slug: string) {
-  return slug
-    ? slug.replaceAll("-", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
-    : "";
 }
 
 /**
@@ -782,7 +772,7 @@ export function VendorCard({
             </label>
           )}
           <QuoteDialog vendor={vendor} open={quoteOpen} onOpenChange={setQuoteOpen} />
-          <Button size="sm" onClick={() => setQuoteOpen(true)}>
+          <Button onClick={() => setQuoteOpen(true)} className="h-10 px-4 text-sm">
             Request quote
           </Button>
         </div>

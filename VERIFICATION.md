@@ -127,6 +127,17 @@ read as a claim about where the party was. `verify-mobile-viewer.mjs` asserts it
 listing from the report (`/vendors/party-characters-for-kids`, Los Angeles) by typing
 Houston and checking both that the banner follows and that the old city is gone.
 
+**A slug where a heading belonged.** `/category/superheroes` was headed
+*superheroes* — the route did `slug.replaceAll("-", " ")` and stopped there, so the URL
+leaked into the page and into `<title>`. The existing `categoryLabel()` helper already
+title-cases ("non-mascots" → "Non Mascots") and is now exported and used by both category
+routes for the heading and the metadata. The ten category names in the database were
+already correct; only the two slug-driven routes were wrong.
+
+**The card's button.** 32px tall at `size="sm"` beside a 12px label read as a tag rather
+than the card's action; it is 40px with `text-sm` now, one step below the listing page's
+44px primary.
+
 **The newest business.** *Something Different Party Rental*
 (`somethingdifferentpartyrental.com`) is one sponsored row, filed under New York, NY, in six
 categories (superheroes primary), from $220, with a description written from the site's own

@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SearchResults } from "@/components/marketplace/marketplace";
 import { cityFromSlug } from "@/lib/marketplace-data";
+import { categoryLabel } from "@/lib/labels";
 
 export const Route = createFileRoute("/category/$slug/$location")({
   head: ({ params }) => {
-    const category = params.slug.replaceAll("-", " ");
+    const category = categoryLabel(params.slug);
     const location = cityFromSlug(params.location);
     return {
       meta: [
@@ -28,5 +29,5 @@ export const Route = createFileRoute("/category/$slug/$location")({
 function Page() {
   const { slug, location } = Route.useParams();
   const city = cityFromSlug(location);
-  return <SearchResults title={`${slug.replaceAll("-", " ")} in ${city}`} category={slug} location={city} />;
+  return <SearchResults title={`${categoryLabel(slug)} in ${city}`} category={slug} location={city} />;
 }
