@@ -329,6 +329,11 @@ export function RequestQuoteForm({
   const isLastStep = step === STEPS.length - 1;
   const progress = ((step + 1) / STEPS.length) * 100;
 
+  // The banner says where this quote is *for*, so it follows the answer to "Where is the
+  // party?" as it is typed. Printing the listing's own city there contradicted the field
+  // the visitor had just filled in — a Houston party was announced as Los Angeles.
+  const partyCity = cityTerm.trim();
+
   /** Only open the next question once this one has nothing left to answer. */
   async function goNext() {
     const valid = await form.trigger(current.field);
@@ -432,7 +437,7 @@ export function RequestQuoteForm({
             <Building2 className="size-5 shrink-0 text-primary" />
             <p className="text-sm font-semibold">
               Requesting a quote from <b>{vendor.name}</b>
-              {vendor.location ? ` · ${vendor.location}` : ""}
+              {partyCity ? ` · ${partyCity}` : vendor.location ? ` · ${vendor.location}` : ""}
             </p>
           </div>
         )}
@@ -864,9 +869,8 @@ export function QuoteDialog({ vendor, open = false, onOpenChange = () => {} }: {
             Request a quote from {vendor.name}
           </DialogTitle>
           <DialogDescription>
-            This goes straight to {vendor.name}
-            {vendor.location ? ` in ${vendor.location}` : ""} — no account needed, and you are not
-            obliged to book.
+            This goes straight to {vendor.name} — no account needed, and you are not obliged to
+            book.
           </DialogDescription>
         </DialogHeader>
         <div className="mt-4">

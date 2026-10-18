@@ -117,6 +117,16 @@ parent re-render no longer touches the calendar's nodes. Both `openOnClick` fiel
 quote form's and the hero search panel's — now pick a day, and the caret still stays in the
 box, which is what that mode is for.
 
+**The quote banner named the wrong city.** Reported from a screenshot: a visitor typed
+*Houston, TX* into *Where is the party?* and the box above it still read
+*Requesting a quote from Party Characters For Kids · Los Angeles, CA* — the listing's own
+city, printed beside a question about the party. The banner now follows the answer as it
+is typed (`form.watch("city")`), falling back to the listing's city only while the field is
+still empty; the dialog's own line no longer says *This goes straight to X in <city>*, which
+read as a claim about where the party was. `verify-mobile-viewer.mjs` asserts it on the
+listing from the report (`/vendors/party-characters-for-kids`, Los Angeles) by typing
+Houston and checking both that the banner follows and that the old city is gone.
+
 **The newest business.** *Something Different Party Rental*
 (`somethingdifferentpartyrental.com`) is one sponsored row, filed under New York, NY, in six
 categories (superheroes primary), from $220, with a description written from the site's own

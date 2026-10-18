@@ -220,6 +220,13 @@ const menuState = (page) =>
     const box = button.getBoundingClientRect();
     return { height: Math.round(box.height), width: Math.round(box.width) };
   });
+  // The listing's own city, as printed in its hero. The quote banner used to repeat this
+  // even after the visitor had said where the party was.
+  const listingCity = await page.evaluate(() => {
+    const spans = [...document.querySelectorAll('main section span')];
+    return spans.map((node) => node.textContent.trim()).find((text) => /^[A-Za-z .'-]+, [A-Z]{2}$/.test(text)) ?? null;
+  });
+  console.log(`  listing city: ${JSON.stringify(listingCity)}`);
   console.log(`  listing Request quote button: ${JSON.stringify(ask)}`);
   check("the listing's Request quote button is a comfortable tap target (>=44px)", (ask?.height ?? 0) >= 44, JSON.stringify(ask));
 
@@ -238,6 +245,35 @@ const menuState = (page) =>
     await page.waitForTimeout(450);
   }
   check('the listing\'s quote form opens with the city the visitor searched', (city ?? '').toLowerCase().includes(SEARCH_CITY.toLowerCase()), JSON.stringify(city));
+
+  // The visitor answers "Where is the party?" in front of this box, so the box has to
+  // follow that answer rather than repeating the listing's own city — a Houston party
+  // announced as Los Angeles is the bug this checks for.
+  const NOT_THE_PARTY_CITY = 'Houston, TX';
+  const cityInput = dialog.locator('input:visible').first();
+  await cityInput.fill(NOT_THE_PARTY_CITY);
+  await page.waitForTimeout(400);
+  const banner = await dialog.evaluate((node) => node.innerText.replace(/\s+/g, ' '));
+  console.log(`  banner after typing ${NOT_THE_PARTY_CITY}: ${JSON.stringify(banner.slice(0, 160))}`);
+  check(
+    'the quote banner shows the city the visitor filed',
+    /requesting a quote from/i.test(banner) && banner.includes(NOT_THE_PARTY_CITY),
+    banner.slice(0, 160),
+  );
+  if (listingCity && listingCity !== NOT_THE_PARTY_CITY) {
+    check(
+      `the banner no longer repeats the listing's city (${listingCity})`,
+      !banner.includes(listingCity),
+      banner.slice(0, 160),
+    );
+  }
+  // The header used to say "This goes straight to X in <listing city>", which read as a
+  // claim about where the party was.
+  check(
+    'the dialog header makes no claim about the party city',
+    !listingCity || !banner.includes(`in ${listingCity}`),
+    banner.slice(0, 160),
+  );
 
   await browser.close();
   const failed = results.filter((result) => !result.ok);
