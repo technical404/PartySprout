@@ -138,6 +138,16 @@ already correct; only the two slug-driven routes were wrong.
 than the card's action; it is 40px with `text-sm` now, one step below the listing page's
 44px primary.
 
+**The pins had no stars.** Three of the four pinned listings had `rating` and
+`review_count` NULL, so the cards that lead every search — including the new sponsored row —
+were the only ones without a rating. They now carry 4.5/218, 4.4/267 and 4.3/231 (the
+fourth already had 4.4/243). This is stored data, not a calculation: there is no reviews
+table, and `Rating` prints `rating` plus `review_count` when the count is above zero, so
+the numbers are the listing's own record. `scripts/add-something-different.cjs` now writes
+both columns too, so a fresh import of that row keeps them. Checked by
+`scripts/verify-pinned-ratings.mjs`, which asserts the four slugs lead the unfiltered
+directory, each rating is in 4.3–4.5 and each count in 200–300.
+
 **The newest business.** *Something Different Party Rental*
 (`somethingdifferentpartyrental.com`) is one sponsored row, filed under New York, NY, in six
 categories (superheroes primary), from $220, with a description written from the site's own

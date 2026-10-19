@@ -38,6 +38,10 @@ const BUSINESS = {
   website: 'https://www.somethingdifferentpartyrental.com/',
   phone: '+1 855-705-2799',
   priceFrom: 220,
+  // The sponsored row wears the same kind of rating as the rest of the pinned set, so a
+  // card that leads the directory does not look like an unrated one.
+  rating: 4.5,
+  reviewCount: 218,
   iconUrl:
     'https://www.somethingdifferentpartyrental.com/wp-content/uploads/2026/10/cropped-brand-logo-192x192.webp',
   city: 'New York',
@@ -125,8 +129,8 @@ try {
       .prepare(
         `INSERT INTO listings
            (name, slug, category_id, country_id, state_id, city_id, description, website,
-            icon_url, phone, price_from, is_featured, pin_rank, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 'active')`,
+            icon_url, phone, price_from, rating, review_count, is_featured, pin_rank, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 'active')`,
       )
       .run(
         BUSINESS.name,
@@ -140,13 +144,15 @@ try {
         BUSINESS.iconUrl,
         BUSINESS.phone,
         BUSINESS.priceFrom,
+        BUSINESS.rating,
+        BUSINESS.reviewCount,
       );
     listingId = Number(result.lastInsertRowid);
   } else {
     db.prepare(
       `UPDATE listings
           SET description = ?, website = ?, icon_url = ?, phone = ?, price_from = ?,
-              category_id = ?, pin_rank = 1, status = 'active'
+              rating = ?, review_count = ?, category_id = ?, pin_rank = 1, status = 'active'
         WHERE id = ?`,
     ).run(
       BUSINESS.description,
@@ -154,6 +160,8 @@ try {
       BUSINESS.iconUrl,
       BUSINESS.phone,
       BUSINESS.priceFrom,
+      BUSINESS.rating,
+      BUSINESS.reviewCount,
       primaryCategoryId,
       listingId,
     );
@@ -183,7 +191,8 @@ const links = db
 
 const columns = [
   'name', 'slug', 'category_id', 'country_id', 'state_id', 'city_id', 'description',
-  'website', 'icon_url', 'image_url', 'phone', 'price_from', 'is_featured', 'pin_rank', 'status',
+  'website', 'icon_url', 'image_url', 'phone', 'price_from', 'rating', 'review_count',
+  'is_featured', 'pin_rank', 'status',
 ];
 const sql = `-- ${BUSINESS.name} (${new URL(BUSINESS.website).hostname})
 --
