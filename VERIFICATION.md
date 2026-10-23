@@ -302,6 +302,58 @@ labelled *Date*. Neither is in the current gate; both are worth repairing or del
 
 ---
 
+### 2026-10-24 — iteration 18: a quote request opens in full
+
+The **Quote requests** tab could show a request but not let you read one. Each row carried a
+summary — city and event type, date, head count, budget — and the details text, the ages and
+who it went to were only in the CSV. An admin who wanted to answer a parent had to export.
+
+Every row now has **Details**, next to **Delete**, which opens the whole request: the free-text
+answer the parent wrote (line breaks kept, *No extra details were given.* when it is blank),
+then city, event type, date, children, ages, budget, category and the business it went to, with
+clickable `mailto:` and `tel:` links on the contact line. The category prints as its name
+(`Superheroes`) rather than its slug (`superheroes`), through the same `categoryLabel` helper the
+public category pages use. Nothing was added server-side: `SELECT qt.*` already returned every
+column, which the new API check now pins down so a narrower reader would fail loudly.
+
+The dashboard also loses its **Test data** card — "rows created by probes and test accounts are
+real database rows — delete them in the Listings tab" — because the cards explain the console and
+that one only described the authors' own runs. The cross-reference it left behind in
+`VERIFICATION.md` now points at *Test data is cleaned, not left behind* instead of at a card that
+no longer exists.
+
+```
+node scripts/verify-admin-panel.cjs       ->  70/70  (+1: an admin quote row carries details,
+                                                    child_age, event_type, budget, event_date
+                                                    and category_slug — what the dialog reads)
+node scripts/verify-admin-ui.mjs          ->  65/65  (was 57, +8 in a real browser: the dashboard
+                                                    no longer carries the test-data note; a posted
+                                                    request is found by search; Details opens it,
+                                                    shows the parent's own sentence and every
+                                                    party fact, offers a mailto, and closes)
+npx tsc --noEmit                          ->  clean
+npm run build                             ->  built (client + SSR + prerender)
+npx eslint <changed files>                ->  no new problems (the 13 prettier errors in
+                                              admin-console.tsx are in lines this change did not
+                                              touch)
+```
+
+The browser check creates its own request through `POST /api/quote-requests` (so the dialog has
+something real to show), searches for it by the generated parent name, and the run's cleanup
+deletes it and the throwaway admin again — `removed quote request 85`, `removed
+admin-ui-check@example.test`.
+
+Live, read-only, and without an admin login: the deployed `assets/admin-CVrmY2as.js` was fetched
+and asserted to contain the dialog (*What they wrote*, the empty-state sentence, the
+`.details?.trim()` read) and to no longer contain the test-data sentence — **6/6, nothing
+written**. A signed-in walk against the live site was not repeated: the credential file from the
+previous run was deleted on purpose, and the local browser run covers the same eight steps.
+
+Deploy: 82 assets uploaded, shell and index refreshed, 55 alias files re-pointed at the new
+`index-BMvcPmEi.js` / `styles-ssi0s8-Q.css`, five root files md5-checked, live `index.html` md5
+matching the build. No PHP upload — this change is client-side only, and `api/index.php` did not
+move.
+
 ### 2026-10-17 — iteration 17: you can change your own password, and the console can make accounts
 
 Two things were missing rather than broken. The console's per-row **Password** button already
@@ -1203,7 +1255,7 @@ What the browser run proves, in order:
 | The approved business is findable in search **with its published `$300` price** | PASS |
 | Signed-in parent's quote request appears again on `/quotes` | PASS |
 
-Test rows created by that run (all real database rows; removed afterwards — see "Test data"):
+Test rows created by that run (all real database rows; removed afterwards — see "Test data is cleaned, not left behind"):
 
 - vendor `e2e.vendor.<stamp>@example.test` owning `E2E Test Parties <stamp>` (approved, superheroes, Dallas, $300)
 - parent `e2e.parent.<stamp>@example.test` with a quote request to AlakaSam

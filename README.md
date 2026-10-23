@@ -164,7 +164,9 @@ AGENTS.md                    project note for agents
   delete their own account — the last admin cannot lock the panel.
 - **Categories**: rename a category, rewrite its tagline, hide it, and rename the
   specialty labels its homepage card shows. Slugs never change.
-- **Quote requests**: browse and search every request, and delete one.
+- **Quote requests**: browse and search every request, open one with **Details** to read
+  every answer in full — what the parent wrote, ages, budget, category and who it went to —
+  and delete one.
 - Every tab exports what it is showing — the whole filtered set, walked a page at a time,
   not just the rows on screen — as CSV.
 

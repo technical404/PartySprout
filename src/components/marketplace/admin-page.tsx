@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  AlertCircle,
   Building2,
   CheckCheck,
   Clock3,
@@ -243,11 +242,6 @@ export function AdminPage() {
                   icon={Users}
                   title="Who can submit"
                   copy="Any signed-in account can submit a business. Accounts are not pre-approved, so the review queue is the real gate."
-                />
-                <Card
-                  icon={AlertCircle}
-                  title="Test data"
-                  copy="Rows created by probes and test accounts are real database rows — delete them in the Listings tab if you do not want them."
                 />
               </div>
             </section>

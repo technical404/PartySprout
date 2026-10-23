@@ -379,6 +379,20 @@ function cleanup() {
   const quotes = await asAdmin(`/api/admin/quotes?q=${encodeURIComponent(parent.email)}`);
   check('quote search responds with paging', quotes.status === 200 && typeof quotes.body.total === 'number', quotes.body);
   check('quote rows carry the vendor name', quotes.body.items.some((row) => row.id === quote.id && row.vendor_name), quotes.body.items);
+  const detailRow = quotes.body.items.find((row) => row.id === quote.id);
+  check(
+    'quote rows carry every answer the Details dialog shows',
+    Boolean(
+      detailRow &&
+        detailRow.details === 'Created by scripts/verify-admin-panel.cjs' &&
+        detailRow.child_age === '5' &&
+        detailRow.event_type === 'Birthday (Child)' &&
+        detailRow.budget === '500-1000' &&
+        detailRow.event_date === '2026-12-24' &&
+        'category_slug' in detailRow,
+    ),
+    detailRow,
+  );
   check(
     'quote totals do not double count a search miss',
     (await asAdmin('/api/admin/quotes?q=zzz-no-such-quote')).body.total === 0,

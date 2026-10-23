@@ -36,6 +36,8 @@ const EMAIL = process.env.PS_ADMIN_EMAIL || 'admin-ui-check@example.test';
 const PASSWORD = crypto.randomBytes(15).toString('base64url');
 // The one account this run creates through the console, removed again below.
 const madeEmail = `ui-made-${Date.now()}@example.test`;
+// Quote requests this run creates through the API, removed again below.
+const createdQuoteIds = [];
 
 const results = [];
 function check(label, ok, detail = '') {
@@ -64,6 +66,10 @@ function removeAdmin() {
   if (made) {
     queries.adminDeleteUser(made.id);
     console.log(`removed ${madeEmail} (id ${made.id})`);
+  }
+  for (const id of createdQuoteIds) {
+    queries.adminDeleteQuoteRequest(id);
+    console.log(`removed quote request ${id}`);
   }
 }
 
@@ -95,6 +101,10 @@ try {
     (await page.locator('h1').innerText()).includes('Dashboard'),
   );
   check('the dashboard shows live counts', /[1-9]\d*/.test(await body()));
+  check(
+    'the dashboard no longer tells admins to delete test rows',
+    !/test accounts are real database rows/i.test(await body()),
+  );
 
   // --- listings -----------------------------------------------------------
   await tab('Listings').click();
@@ -262,6 +272,58 @@ try {
     page.getByRole('button', { name: 'Export CSV' }).click(),
   ]);
   check('CSV export really downloads a file', download !== null, download ? download.suggestedFilename() : 'no download event');
+
+  // A real request of our own, so the Details dialog has something to show.
+  const marker = `ui-quote-${Date.now()}`;
+  const written = 'Two Spidermen please, and a face painter.\nBirthday boy is turning six.';
+  const posted = await page.evaluate(async ([name, details]) => {
+    const res = await fetch('/api/quote-requests', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        email: `${name}@example.test`,
+        phone: '6416663945',
+        city: 'Dallas',
+        eventDate: '2026-12-05',
+        guestCount: '12',
+        childAge: 'Mostly age 6',
+        eventType: 'Birthday (Child)',
+        categorySlug: 'superheroes',
+        budget: 'Under $300',
+        details,
+      }),
+    });
+    return { status: res.status, body: await res.json().catch(() => ({})) };
+  }, [marker, written]);
+  check('a quote request can be created for the check', posted.status === 201, JSON.stringify(posted));
+  if (posted.body && posted.body.id) createdQuoteIds.push(posted.body.id);
+
+  const quoteSearch = page.getByPlaceholder('Parent, email or city');
+  await quoteSearch.fill(marker);
+  await page.waitForTimeout(1800);
+  const quoteRow = page.locator('table tbody tr').filter({ hasText: marker }).first();
+  check('the quote is listed in the tab', (await quoteRow.count()) === 1);
+
+  await quoteRow.getByRole('button', { name: 'Details' }).click();
+  await page.waitForTimeout(800);
+  const quoteDialog = page.getByRole('dialog');
+  check('the Details button opens the request', await quoteDialog.isVisible());
+  const quoteText = await quoteDialog.innerText();
+  check('it shows what the parent wrote', quoteText.includes('Two Spidermen please'), quoteText.slice(0, 200));
+  check(
+    'it shows the party facts, not just the row summary',
+    ['Dallas', '12', 'Mostly age 6', 'Superheroes', 'Under $300', 'Birthday (Child)'].every((part) =>
+      quoteText.includes(part),
+    ),
+    quoteText.slice(0, 300),
+  );
+  check('it offers a way to reply', (await quoteDialog.locator('a[href^="mailto:"]').count()) === 1);
+  await quoteDialog.getByRole('button', { name: 'Done' }).click();
+  await page.waitForTimeout(600);
+  check('the Details dialog closes', (await page.getByRole('dialog').count()) === 0);
+  await quoteSearch.fill('');
+  await page.waitForTimeout(1500);
 
   const realErrors = errors.filter((line) => !/Failed to load resource: the server responded with a status of 4\d\d/.test(line));
   check('no uncaught page errors', realErrors.length === 0, realErrors.slice(0, 2).join(' | '));

@@ -3,9 +3,12 @@ import { Link } from "@tanstack/react-router";
 import {
   Download,
   ExternalLink,
+  Eye,
   KeyRound,
   Loader2,
+  Mail,
   Pencil,
+  Phone,
   Search,
   Star,
   Trash2,
@@ -59,6 +62,7 @@ import {
   type AdminUser,
 } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
+import { categoryLabel } from "@/lib/labels";
 import type { QuoteRequestRow } from "@/lib/marketplace-data";
 import { StatusChip } from "./vendor-pages";
 
@@ -1595,6 +1599,7 @@ export function QuotesSection() {
   const [data, setData] = useState<AdminPage<QuoteRequestRow> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<QuoteRequestRow | null>(null);
   const [deleting, setDeleting] = useState<QuoteRequestRow | null>(null);
 
   const load = useCallback(async () => {
@@ -1723,7 +1728,11 @@ export function QuotesSection() {
                     </TableCell>
                     <TableCell>{quote.vendor_name ?? "Any matching entertainer"}</TableCell>
                     <TableCell>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setViewing(quote)}>
+                          <Eye />
+                          Details
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => setDeleting(quote)}>
                           <Trash2 className="text-destructive" />
                           Delete
@@ -1754,6 +1763,85 @@ export function QuotesSection() {
         onCancel={() => setDeleting(null)}
         onConfirm={() => void confirmDelete()}
       />
+
+      {viewing && <QuoteDetailsDialog quote={viewing} onClose={() => setViewing(null)} />}
     </section>
+  );
+}
+
+/** Everything a request contains, which the row can only summarise. */
+function QuoteDetailsDialog({ quote, onClose }: { quote: QuoteRequestRow; onClose: () => void }) {
+  const facts: Array<[label: string, value: string]> = [
+    ["City", quote.city ?? "—"],
+    ["Event type", quote.event_type ?? "—"],
+    ["Event date", quote.event_date ? formatDate(quote.event_date) : "—"],
+    ["Children", quote.guest_count ?? "—"],
+    ["Ages", quote.child_age ?? "—"],
+    ["Budget", quote.budget ?? "—"],
+    ["Category", quote.category_slug ? categoryLabel(quote.category_slug) : "—"],
+    ["Sent to", quote.vendor_name ?? "Any matching entertainer"],
+  ];
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Request from {quote.name}</DialogTitle>
+          <DialogDescription>
+            Received {formatDate(quote.created_at)} · request #{quote.id}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap gap-4 text-sm">
+          <a
+            className="inline-flex items-center gap-2 font-semibold text-primary"
+            href={`mailto:${quote.email}`}
+          >
+            <Mail className="size-4" />
+            {quote.email}
+          </a>
+          {quote.phone && (
+            <a
+              className="inline-flex items-center gap-2 font-semibold text-primary"
+              href={`tel:${quote.phone}`}
+            >
+              <Phone className="size-4" />
+              {quote.phone}
+            </a>
+          )}
+        </div>
+
+        <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                {label}
+              </dt>
+              <dd className="mt-1 font-semibold">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            What they wrote
+          </p>
+          <p className="mt-2 whitespace-pre-line rounded-lg border bg-muted/30 p-4 text-sm leading-7">
+            {quote.details?.trim() || "No extra details were given."}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
