@@ -182,20 +182,26 @@ function mail_header_name(string $name): string
 }
 
 /**
- * Who hears about a quote request: the listing's own address when it has one, and the
- * operator's inbox otherwise. The operator always gets a copy, so no request is lost
- * when a listing's address is wrong or missing.
+ * Who hears about a quote request: the listing's own address when it has one, the operator's
+ * configured inbox, and every signed-in admin account. Duplicates are dropped, so an admin
+ * whose address is also notify_email gets one message, not two.
  */
-function quote_request_recipients(array $settings, ?array $vendor): array
+function quote_request_recipients(array $settings, ?array $vendor, array $also = []): array
 {
-    $notify = trim((string) ($settings['notify_email'] ?? ''));
-    $business = trim((string) ($vendor['email'] ?? ''));
-    $recipients = [];
-    if ($business !== '' && filter_var($business, FILTER_VALIDATE_EMAIL) !== false) {
-        $recipients[] = $business;
+    $candidates = [trim((string) ($vendor['email'] ?? ''))];
+    $candidates[] = trim((string) ($settings['notify_email'] ?? ''));
+    foreach ($also as $address) {
+        $candidates[] = trim((string) $address);
     }
-    if ($notify !== '' && !in_array(strtolower($notify), array_map('strtolower', $recipients), true)) {
-        $recipients[] = $notify;
+
+    $recipients = [];
+    foreach ($candidates as $address) {
+        if ($address === '' || filter_var($address, FILTER_VALIDATE_EMAIL) === false) {
+            continue;
+        }
+        if (!in_array(strtolower($address), array_map('strtolower', $recipients), true)) {
+            $recipients[] = $address;
+        }
     }
     return $recipients;
 }
@@ -240,14 +246,14 @@ function quote_request_text(array $quote, ?array $vendor): string
  * Never throws: the request is already stored, and losing the visitor's answers to a
  * mail-server hiccup would be worse than a notification that did not go out.
  */
-function notify_quote_request(array $quote, ?array $vendor): array
+function notify_quote_request(array $quote, ?array $vendor, array $also = []): array
 {
     $settings = mail_settings();
     if ($settings === null) {
         return ['ok' => false, 'error' => 'no mail-config.php'];
     }
 
-    $recipients = quote_request_recipients($settings, $vendor);
+    $recipients = quote_request_recipients($settings, $vendor, $also);
     if ($recipients === []) {
         return ['ok' => false, 'error' => 'no recipient'];
     }

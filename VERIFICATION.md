@@ -111,11 +111,15 @@ quotes in a description cannot break a header. Credentials live in `mail-config.
 site sends nothing and nothing fails, which is what local development and the Node backend
 do — the Node API is deliberately unchanged and has no mailer.
 
-**Who receives it.** The listing's own `email` when it has one, and `notify_email` always
-as a copy, deduplicated when they are the same address. Only **17 of 509** listings carry
-an address, so in practice almost every request is a single message to the operator's
-own inbox. `Reply-To` is the visitor, so replying answers them directly, and the body
-repeats every answer the wizard collected.
+**Who receives it.** The listing's own `email` when it has one, `notify_email`, and every
+**active admin account** from `users` — a quote request is the site's business, so the
+people running it hear about one even when a listing carries no address. The admin
+addresses are queried at send time, so adding an admin needs no redeploy. Duplicates are
+dropped case-insensitively (a listing reusing the notify address still gets one message).
+Only **17 of 509** listings carry an address, so in practice each request is three
+recipients in one envelope — the operator's inbox and both admins. `Reply-To` is the
+visitor, so replying answers them directly, and the body repeats every answer the wizard
+collected.
 
 **A mail failure must not cost the request.** The row is written first; `notify_quote_request()`
 returns a result array, logs `[quote-mail] <reason>` to the PHP error log, and the visitor
@@ -125,8 +129,10 @@ still sees `201 {"id":N,"received":true}`.
 node ps_smtp_probe.mjs send mailer@…            ->  SMTP READY, message accepted
 php tools/send-test-mail.php                    ->  SENT  queue id 1xKKN6-00000000Dp3-0cAj
 php -r notify_quote_request(fixture, null)      ->  ok: true, to: notify_email
-POST /api/quote-requests (live)                 ->  201 in 284-1220 ms
-IMAP SEARCH SUBJECT "New quote request"         ->  8 delivered (7 endpoint sends + 1 dry run)
+POST /api/quote-requests (live)                 ->  201 in 284-1236 ms
+IMAP SEARCH SUBJECT "New quote request"         ->  10 delivered
+recipients (dry run, real accounts)             ->  mailer@…, anuranjan.verma25@gmail.com,
+                                                    rastogi2198@gmail.com
 ```
 
 **The six seconds that were not mail.** The first live submission took 6187 ms, which
@@ -136,24 +142,38 @@ the whole SMTP conversation at **40-90 ms** (`greeting` 15-41 ms, auth under 1 m
 variance is the host, not the mailbox, so the send stays synchronous — moving it behind
 `fastcgi_finish_request()` would have added a failure path for a problem that is not there.
 
-**Written, then removed.** The seven probe requests (`source = 'probe'`,
+**Written, then removed.** The eight probe requests (`source = 'probe'`,
 `ps-probe@example.com`) were deleted from production by a tool that matches those two
-values only; `quote_requests` went 16 → 9, so no real row was touched. The instrumented
-copy of the mailer was replaced with the clean one and re-linted (`No syntax errors`).
+values only; `quote_requests` went 16 → 9 and later 11 → 10, so no real row was touched.
+The instrumented copy of the mailer was replaced with the clean one and re-linted
+(`No syntax errors`).
+
+**Admins were added after the first pass.** The operator asked for the notification to
+reach the admin accounts as well, so the recipient list gained a third source: `admin_emails()`
+in `index.php` reads the active admins at send time and passes them in, which means a new
+admin starts receiving without a redeploy. Deduplication is case-insensitive — a listing
+whose address is `MAILER@…` alongside the configured `mailer@…` produced three recipients,
+not four. Proven by printing the composed list against the real rows (`no listing` →
+operator + both admins; `with listing` → the business + all three) and by one live
+submission whose message reached the fallback inbox.
 
 **Not proven here:** delivery to a *business* address. Every listing that carries an email
 points at a real third party, and sending them a synthetic request would have been a side
 effect nobody asked for, so the vendor branch is proven by the dry run with a self-addressed
 fixture (`to:` came back with exactly that address) rather than by a live send to
-`charactersforparty.com`. Mail also has no retry: a message the host accepts and later
-bounces is not recorded anywhere the console can show.
+`charactersforparty.com`. The same is true of the two admin Gmail inboxes: the SMTP server
+accepted all three `RCPT TO` lines for the live sample, but there is no way from here to
+look inside a Gmail account, so arrival there is inferred from acceptance, not observed.
+Mail also has no retry: a message the host accepts and later bounces is not recorded
+anywhere the console can show.
 
 | Check | Result |
 | --- | --- |
 | `php -l` on `mailer.php`, `index.php`, `tools/send-test-mail.php` (server) | no syntax errors |
 | Mailbox credentials authenticate (AUTH LOGIN, TLS verified, `*.anuranjanverma.com`) | 235 Authentication succeeded |
 | The host sends and the inbox receives | 8 notifications, over IMAP 993 |
-| A quote request still answers 201 with an unchanged body | PASS, 7 samples |
+| A quote request still answers 201 with an unchanged body | PASS, 8 samples |
+| Active admins are recipients, read at send time | 3 recipients, deduped |
 | The mail path costs the request | 40-90 ms |
 | Probe rows removed, real rows untouched | 16 → 9 |
 

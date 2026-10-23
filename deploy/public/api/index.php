@@ -695,6 +695,19 @@ function shape_listing(array $row): array
     return $row;
 }
 
+/**
+ * Every active admin's address: a quote request is the site's business, so the people who
+ * run it hear about one even when the listing has no address of its own.
+ */
+function admin_emails(mysqli $db): array
+{
+    $rows = fetch_all(
+        $db,
+        "SELECT email FROM users WHERE role = 'admin' AND status = 'active' AND email IS NOT NULL AND email <> '' ORDER BY id"
+    );
+    return array_values(array_filter(array_map(static fn ($row) => (string) $row['email'], $rows)));
+}
+
 function listing_by_slug(mysqli $db, string $slug): ?array
 {
     $row = fetch_one(
@@ -2076,6 +2089,7 @@ try {
                 'source' => nullable_text($body['source'] ?? '') ?? 'web',
             ],
             $vendor,
+            admin_emails($db),
         );
 
         send(201, ['id' => $quoteId, 'received' => true]);

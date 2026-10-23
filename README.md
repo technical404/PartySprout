@@ -534,11 +534,13 @@ Settings live in `mail-config.php` one level above `public_html`, next to
 `db-config.php`, mode `0600`. With no file the site sends nothing and nothing fails —
 which is what local development and the Node backend do.
 
-**One message per quote request.** When `POST /api/quote-requests` stores a row, the
-listing's own `email` receives it, and `notify_email` always receives a copy (deduplicated
-when they are the same address). With no listing address — 492 of 509 listings — the
-copy is the only recipient. `Reply-To` is the visitor, so the business can answer
-directly, and the body repeats every answer the wizard collected.
+**One message per quote request.** Recipients are the listing's own `email` when it has
+one, `notify_email`, and every **active admin account** (`users.role = 'admin'`, read at
+send time, so a new admin is included without a redeploy). Duplicates are dropped
+case-insensitively. Only 17 of 509 listings carry an address, so in practice a request is
+three messages in one envelope: the operator's inbox and both admins. `Reply-To` is the
+visitor, so the business can answer directly, and the body repeats every answer the wizard
+collected.
 
 **Failure never costs the request.** The row is written first; the send is best effort,
 returns a result array and writes `[quote-mail] <reason>` to the PHP error log. The
