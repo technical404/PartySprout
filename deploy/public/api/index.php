@@ -67,6 +67,10 @@ const LISTING_STATUSES = ['active', 'pending', 'rejected'];
 /** PBKDF2-HMAC-SHA256. Node writes the same format, so hashes move either way. */
 const PBKDF2_ITERATIONS = 210000;
 
+// Outgoing mail. Definition only — nothing connects until a quote request is stored, and
+// with no mail-config.php on the host every send is a no-op.
+require_once __DIR__ . '/mailer.php';
+
 function send(int $status, $body): void
 {
     http_response_code($status);
@@ -2021,6 +2025,7 @@ try {
         }
 
         $vendorId = null;
+        $vendor = null;
         if (text($body['vendorSlug'] ?? '') !== '') {
             $vendor = listing_by_slug($db, text($body['vendorSlug']));
             $vendorId = $vendor === null ? null : (int) $vendor['id'];
@@ -2049,7 +2054,31 @@ try {
                 nullable_text($body['source'] ?? '') ?? 'web',
             ]
         );
-        send(201, ['id' => (int) $db->insert_id, 'received' => true]);
+        $quoteId = (int) $db->insert_id;
+
+        // The request is stored; the notification is best effort. A mail server that is
+        // down must not turn a saved request into an error the visitor sees, so the
+        // stored row is what the response reports and the failure only reaches the log.
+        notify_quote_request(
+            [
+                'id' => $quoteId,
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'city' => text($body['city'] ?? ''),
+                'event_date' => text($body['eventDate'] ?? ''),
+                'guest_count' => text($body['guestCount'] ?? ''),
+                'child_age' => text($body['childAge'] ?? ''),
+                'event_type' => text($body['eventType'] ?? ''),
+                'category_slug' => text($body['categorySlug'] ?? ''),
+                'budget' => text($body['budget'] ?? ''),
+                'details' => $details,
+                'source' => nullable_text($body['source'] ?? '') ?? 'web',
+            ],
+            $vendor,
+        );
+
+        send(201, ['id' => $quoteId, 'received' => true]);
     }
 
     if ($method === 'GET' && $path === '/api/quote-requests/mine') {

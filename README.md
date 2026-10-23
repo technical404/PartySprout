@@ -88,9 +88,12 @@ Database/
 
 deploy/
   public/api/index.php       the PHP API (mirror of the Node one)
+  public/api/mailer.php      outgoing mail: a small SMTP client, no Composer
   public/.htaccess           /api -> index.php, SPA fallback, security headers
   db-config.example.php      copy to db-config.php OUTSIDE the web root
+  mail-config.example.php    copy to mail-config.php OUTSIDE the web root
   tools/set-password.php     create/reset an account password on the server
+  tools/send-test-mail.php   prove the mailbox works, from the server
 
 .ohmyagent/                  verification scripts, local MySQL/PHP harness, graph pipeline
 scripts/                     older Playwright UI verifiers
@@ -391,7 +394,14 @@ no usable picture keeps its category image.
    ```
    php deploy/tools/set-password.php --create admin@example.com 'a-good-password' admin 'Admin'
    ```
-7. Smoke test in this order: the homepage counters, a search, a login, a business
+7. Copy `deploy/mail-config.example.php` to `mail-config.php` one level above
+   `public_html` (next to `db-config.php`), fill in the mailbox, `chmod 600` it, and
+   check it from the server:
+   ```
+   php deploy/tools/send-test-mail.php you@example.com
+   ```
+   Without this file the site runs normally and sends nothing.
+8. Smoke test in this order: the homepage counters, a search, a login, a business
    submission (it must stay invisible), the admin approval (it must become visible), then
    saving a favourite.
 
@@ -491,7 +501,8 @@ with `graphify cluster-only . --no-label` and `graphify tree --label PartySpark`
 - No in-app messaging, bookings, availability calendar or vendor analytics. Those pages
   say so instead of showing mock rows; conversations happen by email or phone from a
   quote request.
-- No payment flow and no automated email sending.
+- No payment flow, and no mailing list, newsletter or drip campaign. Outgoing mail is one
+  notification per quote request (see section 16).
 - No price on imported listings (the source spreadsheet has none).
 - No session export between environments.
 - No map with markers: the city breakdown counts the real cities in the current results.
@@ -510,3 +521,34 @@ create real rows and remove them again; the cleanup script lists them before it 
 
 Development note: restart `npm run dev` after API changes — the Vite plugin loads
 `Database/api-handler.cjs` once at startup.
+
+---
+
+## 16. Outgoing mail
+
+The host has no Composer, so `deploy/public/api/mailer.php` speaks SMTP itself: implicit
+TLS on port 465, `AUTH LOGIN`, `MAIL FROM` / `RCPT TO` / `DATA`, roughly 90 ms per
+message. STARTTLS on 587 is not implemented.
+
+Settings live in `mail-config.php` one level above `public_html`, next to
+`db-config.php`, mode `0600`. With no file the site sends nothing and nothing fails —
+which is what local development and the Node backend do.
+
+**One message per quote request.** When `POST /api/quote-requests` stores a row, the
+listing's own `email` receives it, and `notify_email` always receives a copy (deduplicated
+when they are the same address). With no listing address — 492 of 509 listings — the
+copy is the only recipient. `Reply-To` is the visitor, so the business can answer
+directly, and the body repeats every answer the wizard collected.
+
+**Failure never costs the request.** The row is written first; the send is best effort,
+returns a result array and writes `[quote-mail] <reason>` to the PHP error log. The
+visitor still sees `201 {"id":N,"received":true}`.
+
+Check it from the server:
+
+```
+php tools/send-test-mail.php you@example.com
+```
+
+It prints the host, the mailbox, the sender, then `SENT` with the queue id, or `FAILED:`
+with the step that failed.

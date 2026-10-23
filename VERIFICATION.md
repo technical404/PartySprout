@@ -4,7 +4,12 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-17, **deployed to https://hirepartycharacters.com** — anyone signed in
+- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — a quote request
+  now sends one email: the listing's own address when it has one, and the operator's inbox
+  always. The host has no Composer, so the SMTP client is written out by hand; credentials
+  sit outside the web root. Verified by sending from the host and reading the inbox over
+  IMAP, iteration 19.
+  (previous: 2026-10-17 — anyone signed in
   can change their own password from `/account`, and `/admin` can create accounts instead of
   needing SSH and SQL. 69 admin API + 57 admin browser + 17 change-password checks locally,
   13 more against the live site, iteration 17)
@@ -89,6 +94,68 @@ very first browser run (the dialog simply stayed open) until the server was rest
 ---
 
 ## Run log
+
+### 2026-10-24 — iteration 19: a quote request now reaches an inbox
+
+Until now the site had **no way to send mail at all**. `POST /api/quote-requests` wrote a
+row and answered 201; nothing was delivered, and the README said so in as many words
+("no automated email sending"). The operator supplied a mailbox, so a quote request now
+produces one email.
+
+The host has no Composer and no PHPMailer, so `deploy/public/api/mailer.php` speaks SMTP
+itself over implicit TLS on 465 — greet, `EHLO`, `AUTH LOGIN`, `MAIL FROM`, `RCPT TO`,
+`DATA`, `QUIT` — and the body is base64 with `Content-Transfer-Encoding` so the curly
+quotes in a description cannot break a header. Credentials live in `mail-config.php`
+**one level above `public_html`**, mode 0600, next to `db-config.php`; the template is
+`deploy/mail-config.example.php` and the real file is gitignored. With no config file the
+site sends nothing and nothing fails, which is what local development and the Node backend
+do — the Node API is deliberately unchanged and has no mailer.
+
+**Who receives it.** The listing's own `email` when it has one, and `notify_email` always
+as a copy, deduplicated when they are the same address. Only **17 of 509** listings carry
+an address, so in practice almost every request is a single message to the operator's
+own inbox. `Reply-To` is the visitor, so replying answers them directly, and the body
+repeats every answer the wizard collected.
+
+**A mail failure must not cost the request.** The row is written first; `notify_quote_request()`
+returns a result array, logs `[quote-mail] <reason>` to the PHP error log, and the visitor
+still sees `201 {"id":N,"received":true}`.
+
+```
+node ps_smtp_probe.mjs send mailer@…            ->  SMTP READY, message accepted
+php tools/send-test-mail.php                    ->  SENT  queue id 1xKKN6-00000000Dp3-0cAj
+php -r notify_quote_request(fixture, null)      ->  ok: true, to: notify_email
+POST /api/quote-requests (live)                 ->  201 in 284-1220 ms
+IMAP SEARCH SUBJECT "New quote request"         ->  8 delivered (7 endpoint sends + 1 dry run)
+```
+
+**The six seconds that were not mail.** The first live submission took 6187 ms, which
+looked like the send sitting in the request. Instrumenting the mailer on the host showed
+the whole SMTP conversation at **40-90 ms** (`greeting` 15-41 ms, auth under 1 ms, `DATA`
+34 ms at the slowest); `GET /api/listings` on the same host also spikes past a second. The
+variance is the host, not the mailbox, so the send stays synchronous — moving it behind
+`fastcgi_finish_request()` would have added a failure path for a problem that is not there.
+
+**Written, then removed.** The seven probe requests (`source = 'probe'`,
+`ps-probe@example.com`) were deleted from production by a tool that matches those two
+values only; `quote_requests` went 16 → 9, so no real row was touched. The instrumented
+copy of the mailer was replaced with the clean one and re-linted (`No syntax errors`).
+
+**Not proven here:** delivery to a *business* address. Every listing that carries an email
+points at a real third party, and sending them a synthetic request would have been a side
+effect nobody asked for, so the vendor branch is proven by the dry run with a self-addressed
+fixture (`to:` came back with exactly that address) rather than by a live send to
+`charactersforparty.com`. Mail also has no retry: a message the host accepts and later
+bounces is not recorded anywhere the console can show.
+
+| Check | Result |
+| --- | --- |
+| `php -l` on `mailer.php`, `index.php`, `tools/send-test-mail.php` (server) | no syntax errors |
+| Mailbox credentials authenticate (AUTH LOGIN, TLS verified, `*.anuranjanverma.com`) | 235 Authentication succeeded |
+| The host sends and the inbox receives | 8 notifications, over IMAP 993 |
+| A quote request still answers 201 with an unchanged body | PASS, 7 samples |
+| The mail path costs the request | 40-90 ms |
+| Probe rows removed, real rows untouched | 16 → 9 |
 
 ### 2026-10-18 — iteration 18: the header's number, a menu that leaves, a date you can pick
 

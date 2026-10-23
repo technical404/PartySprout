@@ -35,6 +35,7 @@ Database/description-updates.sql
 # Undo snapshots written before Database/fetch-about.cjs overwrites descriptions
 Database/description-backup-*.json
 deploy/db-config.php
+deploy/mail-config.php
 
 # Wrangler / Cloudflare
 .wrangler/
