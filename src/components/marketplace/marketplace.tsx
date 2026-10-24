@@ -1145,7 +1145,7 @@ export function SearchResults({
   ].filter(Boolean).length;
 
   return (
-    <main className="min-h-screen bg-surface pb-24">
+    <main className="min-h-screen bg-surface">
       <div
         inert={searchBarHidden || undefined}
         className={cn(

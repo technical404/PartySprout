@@ -386,6 +386,47 @@ const menuState = (page) =>
     banner.slice(0, 160),
   );
 
+  // The search page carried `pb-24` on its <main> as well as on the footer, so 96px of
+  // page background sat below the dark panel at every width — a band of nothing under a
+  // footer that already clears the mobile nav itself. Compare the page height with where
+  // the footer ends: any daylight below it is that leftover padding.
+  for (const path of ["/search?q=&location=", "/", "/category/superheroes"]) {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+    await ready(page);
+    // The results (and the footer under them) arrive with the search query, not with the
+    // route, so wait for the footer itself rather than for a fixed delay.
+    await page
+      .waitForFunction(() => Boolean(document.querySelector("footer")), null, { timeout: 30000 })
+      .catch(() => false);
+    await page.waitForTimeout(400);
+    const footer = await page.evaluate(() => {
+      const element = document.querySelector("footer");
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      const nav = document.querySelector('nav[aria-label="Mobile navigation"]');
+      const lastLink = [...element.querySelectorAll("a")].pop()?.getBoundingClientRect() ?? null;
+      return {
+        belowFooter: Math.round(document.documentElement.scrollHeight - (box.bottom + scrollY)),
+        lastLinkClearance: lastLink
+          ? Math.round(box.bottom + scrollY - (lastLink.bottom + scrollY))
+          : null,
+        navHeight: nav ? Math.round(nav.getBoundingClientRect().height) : 0,
+        navVisible: nav ? getComputedStyle(nav).display !== "none" : false,
+      };
+    });
+    console.log(`  ${path}: ${JSON.stringify(footer)}`);
+    check(
+      `${path} has no band of page below its footer`,
+      footer?.belowFooter === 0,
+      String(footer?.belowFooter),
+    );
+    check(
+      `${path} keeps its last footer link clear of the mobile nav`,
+      !footer || footer.lastLinkClearance === null || footer.lastLinkClearance > footer.navHeight,
+      `${footer?.lastLinkClearance}px vs ${footer?.navHeight}px nav`,
+    );
+  }
+
   await browser.close();
   const failed = results.filter((result) => !result.ok);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed  (${BASE})`);

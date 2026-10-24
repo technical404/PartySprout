@@ -4,11 +4,12 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — a quote request
-  now sends one email: the listing's own address when it has one, and the operator's inbox
-  always. The host has no Composer, so the SMTP client is written out by hand; credentials
-  sit outside the web root. Verified by sending from the host and reading the inbox over
-  IMAP, iteration 19.
+- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — the results pages
+  end at the footer again instead of 96px of empty page below it (iteration 20); a quote
+  request now sends one email: the listing's own address and every active admin when it
+  has one, and the operator's inbox always. The host has no Composer, so the SMTP client is
+  written out by hand; credentials sit outside the web root. Verified by sending from the
+  host and reading the inbox over IMAP, iteration 19.
   (previous: 2026-10-17 — anyone signed in
   can change their own password from `/account`, and `/admin` can create accounts instead of
   needing SSH and SQL. 69 admin API + 57 admin browser + 17 change-password checks locally,
@@ -94,6 +95,35 @@ very first browser run (the dialog simply stayed open) until the server was rest
 ---
 
 ## Run log
+
+### 2026-10-24 — iteration 20: the footer ends where the page ends
+
+Below the dark footer on `/search?q=&location=` there was a **96px band of empty page** —
+the cream surface showing under a panel that is supposed to be the end of the document. It
+was not the footer's own padding: `Footer` carries `pb-24 md:pb-8` and needs it, because
+the fixed bottom nav is 65px tall and the last links have to stay clear of it. The band was
+`pb-24` on the `<main>` that wraps the results **as well**, left behind when the padding
+moved into the footer — the comment beside `<Footer />` even says the page no longer needs
+its own.
+
+One class, `min-h-screen bg-surface pb-24` → `min-h-screen bg-surface`, in
+`SearchResults` (`marketplace.tsx`). That wrapper is shared, so the same band was under
+`/category/*` and every other page that renders results — the live check found it on
+`/category/superheroes` too, not only the URL that was reported.
+
+```
+node scripts/verify-mobile-viewer.mjs                          ->  31/31  (local)
+PS_BASE=https://hirepartycharacters.com  (before the fix)      ->  29/31  (the two new
+                                                                         checks fail: 96px)
+PS_BASE=https://hirepartycharacters.com  (after the deploy)    ->  31/31
+```
+
+Two checks per page over `/search`, `/` and `/category/superheroes`: the document must end
+at the footer's bottom edge (0px below it), and the last footer link must still clear the
+mobile nav (96px of footer padding against a 65px nav). The second is why the footer's own
+padding was left alone. `npx tsc --noEmit` clean; the touched files add no lint findings
+beyond the pre-existing fast-refresh warning in `marketplace.tsx`, and the new code is
+formatted the way prettier asks.
 
 ### 2026-10-24 — iteration 19: a quote request now reaches an inbox
 
