@@ -672,7 +672,9 @@ function select_listings(mysqli $db, string $whereSql, array $params, string $or
                 c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
                 COALESCE(ci.name, l.city_text) AS city_name,
                 CASE WHEN ci.id IS NULL THEN NULL ELSE s.code END AS state_code,
-                co.code AS country_code
+                co.code AS country_code,
+                (SELECT COUNT(*) FROM listings share
+                  WHERE share.status = 'active' AND share.image_url = l.image_url) AS image_share
            FROM listings l
            JOIN categories c ON c.id = l.category_id
            JOIN countries  co ON co.id = l.country_id
@@ -692,6 +694,7 @@ function shape_listing(array $row): array
     $row['price_from'] = $row['price_from'] === null ? null : (float) $row['price_from'];
     $row['rating'] = $row['rating'] === null ? null : (float) $row['rating'];
     $row['review_count'] = $row['review_count'] === null ? null : (int) $row['review_count'];
+    $row['image_share'] = isset($row['image_share']) ? (int) $row['image_share'] : null;
     return $row;
 }
 

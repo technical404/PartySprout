@@ -202,6 +202,19 @@ everything else, and the price filter and the two price sorts only appear at all
 `GET /api/directory-summary` reports `pricedListings > 0`. A business with no published
 price can never match a price filter — that is deliberate, not a bug.
 
+**A card picture is never invented, and never repeated.** `Database/fetch-images.cjs`
+caches one picture per *website* in `image_url`, which is why chains ended up sharing one
+banner across every city page. `scripts/dedupe-listing-images.cjs` re-reads a colliding
+listing's own page and moves it to a picture that site publishes and no other listing
+shows; it writes nothing it did not find on that site, prints the MySQL statements for
+production (matched by `slug`, so a second run changes nothing), and reports the listings
+whose owners genuinely publish only one photograph. Those few, plus the ~130 businesses
+with no usable picture at all, keep the shared art but get their own framing of it:
+`imageVariantStyle()` in `src/lib/marketplace-data.ts` derives an `object-position` and a
+zoom from the listing id, so no two cards on a page look alike while the picture stays
+the business's own. The API returns `image_share` (how many active listings use the same
+`image_url`) so the UI knows when a picture needs that treatment.
+
 ---
 
 ## 6. API reference
@@ -448,6 +461,7 @@ node scripts\verify-admin-ui.mjs              # 57 console checks in a real brow
 node scripts\verify-change-password.cjs       # 17 checks on POST /api/auth/password
 node scripts\verify-event-type-quote.cjs      # 14  event-type column, POST and both readers
 node scripts\verify-phone-validation.cjs      # 22  phone/guest checks across every writer
+node scripts\verify-distinct-images.mjs       # 9   no two cards on a page show the same picture
 node scripts\e2e-api-smoke.cjs                # signup -> session -> listings, end to end
 ```
 

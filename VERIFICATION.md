@@ -4,10 +4,12 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — the results pages
-  end at the footer again instead of 96px of empty page below it (iteration 20); a quote
-  request now sends one email: the listing's own address and every active admin when it
-  has one, and the operator's inbox always. The host has no Composer, so the SMTP client is
+- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — no two cards on
+  a results page show the same picture any more (iteration 21): 43 listings moved onto a
+  photo their own site publishes, the rest are framed per listing; the results pages end
+  at the footer instead of 96px of empty page below it (iteration 20); a quote request
+  now sends one email: the listing's own address and every active admin when it has one,
+  and the operator's inbox always. The host has no Composer, so the SMTP client is
   written out by hand; credentials sit outside the web root. Verified by sending from the
   host and reading the inbox over IMAP, iteration 19.
   (previous: 2026-10-17 — anyone signed in
@@ -95,6 +97,71 @@ very first browser run (the dialog simply stayed open) until the server was rest
 ---
 
 ## Run log
+
+### 2026-10-24 — iteration 21: no two cards show the same picture
+
+A results page used to repeat itself in two ways, and neither was a rendering bug:
+
+- **132 active listings have no picture of their own.** `mapVendor()` fell back to the
+  category's stock art, so every unphotographed superhero business showed the same
+  illustration, pixel for pixel.
+- **67 listings shared 16 photographs** because `Database/fetch-images.cjs` caches one
+  picture per *website*. Chain city pages made it obvious: all sixteen "Party Characters
+  For Kids" cards carried one superhero banner, and eleven "The Princess Party Co." cards
+  one banner between them.
+
+The data side is `scripts/dedupe-listing-images.cjs`. It re-reads each colliding listing's
+own page, picks a photo that page actually publishes and that no other active listing
+uses, and only ever writes a URL it found there:
+
+```
+node scripts/dedupe-listing-images.cjs            # dry run, prints every pick
+node scripts/dedupe-listing-images.cjs --apply    # write SQLite + Database/image-dedupe.sql
+```
+
+43 of the 67 could be given a photo of their own (characters.io's city pages now show
+Alice, Spider-Man, Elsa, Belle, a stormtrooper, Moana; the fun factory pages got their
+clown, mascot and petting-zoo shots apart). The remaining 23 belong to owners who really
+publish only one picture — those keep it.
+
+The MySQL side ran against production first as a report and then as 43 guarded
+`UPDATE`s matched by `slug` (ids have drifted): **43 would change / 43 changed, 0 failed**,
+a second run **0 changed, 43 already done**, and the file was deleted from `tmp/`
+afterwards. Shared pictures on production: 16 → 6.
+
+A 404 was found while checking that every new URL really answers with an image: three
+listings still pointed at `characters.io/images/og-image.jpg`, which that site no longer
+serves. Their `image_url` was cleared — locally and on production, by `slug` — so those
+cards fall back to the category art and get a crop of their own instead of a broken
+picture. Shared pictures afterwards: **5 groups covering 20 listings**, plus 135 active
+listings that publish no usable picture at all.
+
+That still leaves a handful of pictures covering several listings, plus the ~135 with no
+photo, so the repeat had to be broken in the rendering as well. `imageVariantStyle(id)`
+derives an `object-position` and a 1.12–1.36× zoom from the listing id; the card applies
+them when `image_share > 1` or when the picture is stock art. Same framing on every visit
+(a crop that reshuffled on reload would read as a glitch), different framing between
+neighbours. The API now returns `image_share` per row — `select_listings()` in `index.php`
+and `selectListings()` in `queries.js`, kept column-for-column as they must be.
+
+```
+node scripts/verify-distinct-images.mjs                        ->  9/9   (local)
+  with the framing disabled (control run)                      ->  6/9   (three pages fail)
+PS_BASE=https://hirepartycharacters.com                       ->  9/9
+node scripts/verify-mobile-viewer.mjs                          ->  31/31
+node scripts/verify-pinned-ratings.mjs                         ->  12/12 (local and live)
+```
+
+The control run matters: with `imageVariant` forced to `null` the new check fails on all
+three pages and names the colliding cards ("Characters for Hire ℠ / A Dash of Magic
+Events", "The Princess Party Co. / The Princess Party Co."), so it is testing the fix
+rather than passing on its own. On the live page, the 24 cards of `/search` render 24
+distinct picture-and-crop pairs, and no card is left with a picture that failed to load.
+
+One thing deliberately left alone: the vendor page's 420px banner uses the same picture
+without the framing. That page shows one business at a time, so there is nothing to be
+confused with, and the file's markup is a pre-existing single-line prettier violation
+that any edit would expand into sixteen new findings.
 
 ### 2026-10-24 — iteration 20: the footer ends where the page ends
 

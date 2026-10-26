@@ -1,5 +1,13 @@
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 import {
   BadgeCheck,
   Building2,
@@ -709,6 +717,17 @@ export function VendorCard({
           width={700}
           height={460}
           className="vendor-image"
+          // The same picture is on another card (or it is the category's stock art),
+          // so this card looks at a different part of it. object-position alone can
+          // only slide within the crop, so the zoom gives it something to slide to.
+          style={
+            vendor.imageVariant
+              ? ({
+                  "--variant-zoom": vendor.imageVariant.zoom,
+                  objectPosition: vendor.imageVariant.objectPosition,
+                } as CSSProperties)
+              : undefined
+          }
         />
         <FavoriteButton id={vendor.id} name={vendor.name} />
         {vendor.featured && (

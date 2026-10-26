@@ -8,6 +8,7 @@ import fairies from "@/assets/categories/fairies.jpg";
 import clowns from "@/assets/categories/clowns.jpg";
 import holidays from "@/assets/categories/holidays.jpg";
 import magicianParty from "@/assets/magician-party.jpg";
+import type { CSSProperties } from "react";
 
 export type Category = {
   name: string;
@@ -55,8 +56,11 @@ export type Vendor = {
   /** The business's own site icon, or null when it has none / is unknown. */
   logo: string | null;
   /** The picture its card shows: the business's own when it has one, else the stock
-   *  picture for its category. */
+   *  picture for its category (see `stockImage`). */
   image: string;
+  /** Set when another active listing shows the same picture (or `image` is stock art).
+   *  The card then frames it per listing, so the two never look like one card twice. */
+  imageVariant: { objectPosition: string; zoom: number } | null;
   /** The category's stock picture, for when `image` is a hotlink that has gone away. */
   fallbackImage: string;
   description: string;
@@ -76,6 +80,9 @@ export type ListingRow = {
   icon_url?: string | null;
   /** The business's own homepage picture, cached by Database/fetch-images.cjs. */
   image_url?: string | null;
+  /** How many active listings use this same `image_url`; absent when that was never
+   *  counted, which is treated as "not shared". */
+  image_share?: number | null;
   phone?: string | null;
   price_from?: number | null;
   rating?: number | null;
@@ -206,6 +213,33 @@ export function categoryImage(slug: string) {
 }
 
 /**
+ * A card picture that would otherwise be pixel-identical to another card's gets its
+ * own framing of that same picture instead: a fixed crop measured off the listing id,
+ * so it is the same on every visit and no two cards on a page line up.
+ *
+ * This covers both kinds of repetition the directory has: a business with no picture
+ * of its own (132 of them) all showed the category's stock art, and a handful of
+ * businesses share a photograph because their own site only ever publishes that one.
+ *
+ * Framing is `object-position` (which part of the picture the card looks at) plus a
+ * zoom, rather than a background image, because the pictures are not all one shape: a
+ * square stock illustration and a landscape photograph both have to fill the same
+ * wide, short card without leaving a gap. Both come from the id, not from chance,
+ * because a card that changed appearance on every render would read as broken.
+ */
+export function imageVariantStyle(id: number): { objectPosition: string; zoom: number } {
+  // Mixed the way a hash function mixes: neighbouring ids land far apart in the
+  // sequence, so two cards side by side never get the same framing.
+  const mixed = (Math.imul(id + 0x9e3779b9, 0x85ebca6b) ^ 0x27d4eb2f) >>> 0;
+  const horizontal = mixed % 100;
+  const vertical = (mixed >>> 8) % 100;
+  // 112–136% in 4% steps: enough to pick out a different part of the picture, not so
+  // much that the art turns into a blurry patch.
+  const zoom = 112 + ((mixed >>> 16) % 7) * 4;
+  return { objectPosition: `${horizontal}% ${vertical}%`, zoom: zoom / 100 };
+}
+
+/**
  * Turns the city part of an SEO URL back into something the search filter can
  * use: "dallas-tx" becomes "Dallas", which matches the city reference table.
  */
@@ -275,6 +309,11 @@ function safeImageUrl(value: string | null | undefined): string | null {
 export function mapVendor(row: ListingRow): Vendor {
   const location = [row.city_name, row.state_code].filter(Boolean).join(", ");
   const extraCats = (row.categories || []).map((c) => c.name).filter(Boolean);
+  const own = safeImageUrl(row.image_url);
+  // A picture another active listing also shows reads as a duplicate card, whether it
+  // is the category's stock art or a photograph two businesses happen to share.
+  const shared = Number(row.image_share ?? 0) > 1;
+  const picture = own ?? categoryImage(row.category_slug);
   return {
     id: row.id,
     name: row.name,
@@ -288,7 +327,8 @@ export function mapVendor(row: ListingRow): Vendor {
     website: row.website || null,
     phone: row.phone || null,
     logo: safeLogoUrl(row.icon_url),
-    image: safeImageUrl(row.image_url) ?? categoryImage(row.category_slug),
+    image: picture,
+    imageVariant: !own || shared ? imageVariantStyle(row.id) : null,
     fallbackImage: categoryImage(row.category_slug),
     description: row.description || "",
     policies: row.policies || "",
