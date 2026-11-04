@@ -89,6 +89,7 @@ Database/
 deploy/
   public/api/index.php       the PHP API (mirror of the Node one)
   public/api/mailer.php      outgoing mail: a small SMTP client, no Composer
+  public/api/mail-template.php  the HTML both quote emails are built from
   public/.htaccess           /api -> index.php, SPA fallback, security headers
   db-config.example.php      copy to db-config.php OUTSIDE the web root
   mail-config.example.php    copy to mail-config.php OUTSIDE the web root
@@ -550,23 +551,43 @@ Settings live in `mail-config.php` one level above `public_html`, next to
 `db-config.php`, mode `0600`. With no file the site sends nothing and nothing fails —
 which is what local development and the Node backend do.
 
-**One message per quote request.** Recipients are the listing's own `email` when it has
-one, `notify_email`, and every **active admin account** (`users.role = 'admin'`, read at
-send time, so a new admin is included without a redeploy). Duplicates are dropped
-case-insensitively. Only 17 of 509 listings carry an address, so in practice a request is
-three messages in one envelope: the operator's inbox and both admins. `Reply-To` is the
-visitor, so the business can answer directly, and the body repeats every answer the wizard
-collected.
+**Two messages per quote request.** One notification, and one receipt for the parent.
+
+| Who | What they get |
+| --- | --- |
+| The listing's own `email` when it has one, `notify_email`, and every **active admin account** (`users.role = 'admin'`, read at send time, so a new admin is included without a redeploy) | The full request: who is asking, the party details, the visitor's words, and a **Reply to …** button that answers them directly. One envelope, several recipients, duplicates dropped case-insensitively. |
+| The parent who asked (`quote_requests.email`) | A receipt: it is on its way, what they asked for, and the promise that nothing is payable or confirmed until they agree a price. Replies come back to `notify_email`. |
+
+The two are separate sends on purpose: sending one message to everyone would put the
+admins' addresses in front of every parent who asks for a quote.
+
+**The mail wears the site's clothes.** `deploy/public/api/mail-template.php` holds the
+layout: the logo, the purple, the tinted page and rounded panels — every colour converted
+once from the `oklch` tokens in `src/styles.css`, because no email client understands
+`oklch()` or CSS variables. It is built from tables with inline styles, 600px wide with a
+100% fallback, because Outlook lays out with the Word engine and Gmail drops `<style>`
+blocks. The only remote asset is `/logo.png` on this site. Each message is
+`multipart/alternative`: an HTML part and the same words as plain text for a watch or a
+screen reader.
 
 **Failure never costs the request.** The row is written first; the send is best effort,
 returns a result array and writes `[quote-mail] <reason>` to the PHP error log. The
-visitor still sees `201 {"id":N,"received":true}`.
+visitor still sees `201 {"id":N,"received":true}`. If the notification goes out but the
+parent's receipt does not, the failure is logged as `[quote-receipt]` and the lead still
+reaches the business, which is the part that matters.
 
 Check it from the server:
 
 ```
-php tools/send-test-mail.php you@example.com
+php tools/send-test-mail.php you@example.com          # a plain connectivity test
+php tools/send-test-mail.php you@example.com quote    # both real templates, [TEST] subject
 ```
 
 It prints the host, the mailbox, the sender, then `SENT` with the queue id, or `FAILED:`
-with the step that failed.
+with the step that failed. The `quote` mode renders the actual notification and receipt
+from a fixture, so the layout can be judged in a real inbox before a visitor sees it.
+
+One operational note found while sending the first ones: SiteGround serves IMAP on 993
+with a certificate for `*.siteground.biz`, so a client that checks hostnames cannot read
+the mailbox as `mail.anuranjanverma.com` without `novalidate-cert`. SMTP on 465 verifies
+normally, so sending is unaffected.

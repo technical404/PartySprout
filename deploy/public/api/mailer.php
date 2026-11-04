@@ -15,6 +15,8 @@ declare(strict_types=1);
  * logs, and the caller answers the visitor regardless of what the mail server did.
  */
 
+require_once __DIR__ . '/mail-template.php';
+
 /** The SMTP settings, or null when this deployment was never given a mailbox. */
 function mail_settings(): ?array
 {
@@ -71,9 +73,9 @@ function smtp_expect($socket, string $command, array $codes, string $label): str
 }
 
 /**
- * Sends one plain-text message.
+ * Sends one message, plain text with an HTML alternative when one is given.
  *
- * $mail: to (list), subject, text, replyTo (optional).
+ * $mail: to (list), subject, text, html (optional), replyTo (optional).
  * Returns ['ok' => true, 'id' => SMTP queue id] or ['ok' => false, 'error' => message].
  */
 function smtp_send_text(array $settings, array $mail): array
@@ -141,8 +143,6 @@ function smtp_send_text(array $settings, array $mail): array
             'Subject: ' . $subject,
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . $domain . '>',
             'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=utf-8',
-            'Content-Transfer-Encoding: base64',
             // Marks the mail as its own: a stray auto-reply cannot start a loop.
             'Auto-Submitted: auto-generated',
         ];
@@ -151,8 +151,33 @@ function smtp_send_text(array $settings, array $mail): array
             $headers[] = 'Reply-To: ' . $replyTo;
         }
 
-        $body = rtrim(str_replace(["\r\n", "\r"], "\n", (string) ($mail['text'] ?? '')), "\n");
-        $encoded = chunk_split(base64_encode($body), 76, "\r\n");
+        $plain = rtrim(str_replace(["\r\n", "\r"], "\n", (string) ($mail['text'] ?? '')), "\n");
+        $html = (string) ($mail['html'] ?? '');
+
+        if ($html === '') {
+            $headers[] = 'Content-Type: text/plain; charset=utf-8';
+            $headers[] = 'Content-Transfer-Encoding: base64';
+            $encoded = chunk_split(base64_encode($plain), 76, "\r\n");
+        } else {
+            // multipart/alternative: the last part is the one a client prefers, so the
+            // HTML goes second and the plain text stays the fallback that always works.
+            $boundary = 'ps-' . bin2hex(random_bytes(12));
+            $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+            $encoded = implode("\r\n", [
+                '--' . $boundary,
+                'Content-Type: text/plain; charset=utf-8',
+                'Content-Transfer-Encoding: base64',
+                '',
+                chunk_split(base64_encode($plain), 76, "\r\n"),
+                '--' . $boundary,
+                'Content-Type: text/html; charset=utf-8',
+                'Content-Transfer-Encoding: base64',
+                '',
+                chunk_split(base64_encode(str_replace(["\r\n", "\r"], "\n", $html)), 76, "\r\n"),
+                '--' . $boundary . '--',
+            ]);
+        }
+
         $message = implode("\r\n", $headers) . "\r\n\r\n" . $encoded;
 
         if (@fwrite($socket, $message . "\r\n.\r\n") === false) {
@@ -215,7 +240,8 @@ function quote_request_text(array $quote, ?array $vendor): string
     $lines[] = 'A new quote request came through the directory.';
     $lines[] = '';
     if ($vendor !== null) {
-        $lines[] = 'Listing:  ' . ($vendor['name'] ?? '') . ' (' . ($vendor['slug'] ?? '') . ')';
+        $slug = trim((string) ($vendor['slug'] ?? ''));
+        $lines[] = 'Listing:  ' . ($vendor['name'] ?? '') . ($slug === '' ? '' : ' (' . $slug . ')');
     } else {
         $lines[] = 'Listing:  no particular business — the visitor asked the directory.';
     }
@@ -228,7 +254,7 @@ function quote_request_text(array $quote, ?array $vendor): string
     $lines[] = 'Children: ' . $value('guest_count');
     $lines[] = 'Ages:     ' . $value('child_age');
     $lines[] = 'Event:    ' . $value('event_type');
-    $lines[] = 'Looking for: ' . $value('category_slug');
+    $lines[] = 'Looking for: ' . mail_category($quote);
     $lines[] = 'Budget:   ' . $value('budget');
     $lines[] = '';
     $lines[] = 'What they said:';
@@ -241,10 +267,142 @@ function quote_request_text(array $quote, ?array $vendor): string
 }
 
 /**
- * Tells the listing and the operator about a quote request.
+ * The message the listing, the operator and the admins read: who wants what, where and
+ * when, and a way to answer the visitor without leaving the inbox.
+ */
+function quote_request_html(array $quote, ?array $vendor): string
+{
+    $name = mail_value($quote, 'name', 'A visitor');
+    $where = mail_value($quote, 'city');
+
+    $answered = mail_row('Name', $name)
+        . mail_row('Email', mail_value($quote, 'email'))
+        . mail_row('Phone', mail_value($quote, 'phone'));
+
+    $party = mail_row('Date', mail_value($quote, 'event_date'))
+        . mail_row('City', $where)
+        . mail_row('Children', mail_value($quote, 'guest_count'))
+        . mail_row('Ages', mail_value($quote, 'child_age'))
+        . mail_row('Event type', mail_value($quote, 'event_type'))
+        . mail_row('Entertainment', mail_category($quote))
+        . mail_row('Budget', mail_value($quote, 'budget'));
+
+    $notes = mail_panel(mail_row('What they are planning', mail_value($quote, 'details', '(left blank)'), true));
+
+    $body = mail_listing_pill($vendor)
+        . mail_panel($answered, 'Who is asking')
+        . mail_panel($party, 'The party')
+        . $notes
+        . mail_button('mailto:' . rawurlencode(mail_value($quote, 'email', '')), 'Reply to ' . $name)
+        . '<p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:' . MAIL_COLOURS['muted'] . ';">'
+        . 'Replying to this email answers ' . mail_escape($name) . ' directly — no account needed. '
+        . 'Nothing has been charged or booked: they are waiting for a quote.</p>';
+
+    $heading = $vendor === null ? 'A new quote request' : 'A new quote request for ' . mail_escape((string) ($vendor['name'] ?? ''));
+    $intro = $vendor === null
+        ? 'A parent used the directory to ask for a quote. Their answers are below.'
+        : 'A parent is looking for ' . mail_escape(mail_category($quote, 'entertainment')) . ' in ' . mail_escape($where) . '.';
+
+    return mail_frame($heading, $intro, $body);
+}
+
+/**
+ * The receipt the parent gets: what they asked for, who has it, and what happens next.
+ * It promises nothing the site cannot keep — there is no SLA behind this inbox — and it
+ * carries the same answers so they can check a typo while it is still easy to correct.
+ */
+function quote_request_receipt_html(array $quote, ?array $vendor): string
+{
+    $name = mail_value($quote, 'name', 'there');
+
+    $sent = mail_row('Date', mail_value($quote, 'event_date'))
+        . mail_row('City', mail_value($quote, 'city'))
+        . mail_row('Children', mail_value($quote, 'guest_count'))
+        . mail_row('Ages', mail_value($quote, 'child_age'))
+        . mail_row('Event type', mail_value($quote, 'event_type'))
+        . mail_row('Entertainment', mail_category($quote))
+        . mail_row('Budget', mail_value($quote, 'budget'));
+
+    $recipient = '';
+    if ($vendor !== null) {
+        $recipient = '<p style="margin:0 0 8px 0;font-size:15px;line-height:1.65;">Your request has gone to '
+            . '<strong>' . mail_escape(mail_name($vendor)) . '</strong>.</p>';
+        $website = trim((string) ($vendor['website'] ?? ''));
+        if ($website !== '') {
+            $recipient .= ' You can also look at their website at '
+                . '<a href="' . mail_escape($website) . '" style="color:' . MAIL_COLOURS['primary'] . ';">'
+                . mail_escape(parse_url($website, PHP_URL_HOST) ?: $website) . '</a>.';
+        }
+        $recipient .= '</p>';
+    }
+
+    $body = '<p style="margin:0 0 12px 0;font-size:16px;line-height:1.65;">Hi ' . mail_escape($name) . ',</p>'
+        . '<p style="margin:0 0 8px 0;font-size:15px;line-height:1.65;">'
+        . 'Thanks for using Hire Party Characters. We have your quote request, and it has been passed on'
+        . ($vendor === null ? ' to the businesses that match what you described.' : ' straight to the business you chose.')
+        . '</p>'
+        . $recipient
+        . '<p style="margin:0 0 18px 0;font-size:15px;line-height:1.65;">'
+        . 'The business answers you directly, usually by email or phone. There is nothing to pay and nothing to'
+        . ' confirm until you agree a price with them — so you are not committed to booking.</p>'
+        . mail_listing_pill($vendor)
+        . mail_panel($sent, 'What you asked for')
+        . mail_panel(mail_row('What you told us', mail_value($quote, 'details', '(left blank)'), true))
+        . '<p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:' . MAIL_COLOURS['muted'] . ';">'
+        . 'If something above is wrong, reply to this email and tell us — we can correct the request before'
+        . ' the business acts on it.</p>'
+        . mail_button(MAIL_SITE . '/search', 'Keep looking at other businesses');
+
+    $heading = 'Your quote request is on its way';
+    $intro = $vendor === null
+        ? 'We have sent it to the businesses that match your party.'
+        : 'It has been sent to ' . mail_escape(mail_name($vendor)) . '.';
+
+    return mail_frame($heading, $intro, $body, 'You are receiving this because you asked for a quote on our directory.');
+}
+
+/** The plain-text twin of the parent's receipt, for clients that show no HTML. */
+function quote_request_receipt_text(array $quote, ?array $vendor): string
+{
+    $value = static fn (string $key, string $fallback = '—'): string => trim((string) ($quote[$key] ?? '')) ?: $fallback;
+
+    $lines = [];
+    $lines[] = 'Hi ' . $value('name', 'there') . ',';
+    $lines[] = '';
+    $lines[] = 'Thanks for using Hire Party Characters. We have your quote request.';
+    $lines[] = $vendor === null
+        ? 'It has been passed on to the businesses that match your party.'
+        : 'It has gone straight to ' . mail_name($vendor) . '.';
+    $lines[] = '';
+    $lines[] = 'What you asked for:';
+    $lines[] = '  Date:          ' . $value('event_date');
+    $lines[] = '  City:          ' . $value('city');
+    $lines[] = '  Children:      ' . $value('guest_count');
+    $lines[] = '  Ages:          ' . $value('child_age');
+    $lines[] = '  Event type:    ' . $value('event_type');
+    $lines[] = '  Entertainment: ' . mail_category($quote);
+    $lines[] = '  Budget:        ' . $value('budget');
+    $lines[] = '';
+    $lines[] = 'What you told us:';
+    $lines[] = $value('details', '(left blank)');
+    $lines[] = '';
+    $lines[] = 'The business answers you directly, usually by email or phone. There is nothing to pay';
+    $lines[] = 'and nothing to confirm until you agree a price with them.';
+    $lines[] = '';
+    $lines[] = 'If something above is wrong, reply to this email and tell us.';
+    $lines[] = '';
+    $lines[] = '— hirepartycharacters.com';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Tells the listing and the operator about a quote request, and thanks the parent.
  *
  * Never throws: the request is already stored, and losing the visitor's answers to a
- * mail-server hiccup would be worse than a notification that did not go out.
+ * mail-server hiccup would be worse than a notification that did not go out. The two
+ * messages are sent separately because a parent must not learn an admin's address, and
+ * an admin must not have to filter the parent's copy out of their own inbox.
  */
 function notify_quote_request(array $quote, ?array $vendor, array $also = []): array
 {
@@ -268,11 +426,33 @@ function notify_quote_request(array $quote, ?array $vendor, array $also = []): a
         'to' => $recipients,
         'subject' => $subject,
         'text' => quote_request_text($quote, $vendor),
+        'html' => quote_request_html($quote, $vendor),
         'replyTo' => (string) ($quote['email'] ?? ''),
     ]);
 
     if (!$result['ok']) {
         error_log('[quote-mail] ' . $result['error']);
+        return $result;
     }
+
+    // The parent's receipt is sent after the notification and cannot fail the request:
+    // if it bounces, the business still has the lead, which is the part that matters.
+    $parent = trim((string) ($quote['email'] ?? ''));
+    if ($parent !== '' && filter_var($parent, FILTER_VALIDATE_EMAIL) !== false) {
+        $receipt = smtp_send_text($settings, [
+            'to' => [$parent],
+            'subject' => $vendor === null
+                ? 'Your quote request is with our businesses'
+                : 'Your quote request to ' . (string) ($vendor['name'] ?? ''),
+            'text' => quote_request_receipt_text($quote, $vendor),
+            'html' => quote_request_receipt_html($quote, $vendor),
+            'replyTo' => (string) ($settings['notify_email'] ?? $settings['from_email'] ?? ''),
+        ]);
+        if (!$receipt['ok']) {
+            error_log('[quote-receipt] ' . $receipt['error']);
+        }
+        $result['receipt'] = $receipt;
+    }
+
     return $result;
 }

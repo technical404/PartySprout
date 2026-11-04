@@ -4,14 +4,16 @@ Living record of what actually works in this app, how it was checked, and what i
 still fake or missing. Updated after every fix iteration. Companion to `roadmap.md`
 (which lists what was *built*, not what is *real*).
 
-- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — no two cards on
-  a results page show the same picture any more (iteration 21): 43 listings moved onto a
-  photo their own site publishes, the rest are framed per listing; the results pages end
-  at the footer instead of 96px of empty page below it (iteration 20); a quote request
-  now sends one email: the listing's own address and every active admin when it has one,
-  and the operator's inbox always. The host has no Composer, so the SMTP client is
-  written out by hand; credentials sit outside the web root. Verified by sending from the
-  host and reading the inbox over IMAP, iteration 19.
+- Last run: 2026-10-24, **deployed to https://hirepartycharacters.com** — a quote request
+  now sends two styled emails in the site's own design: one to the business, the operator
+  and every admin, and a receipt to the parent (iteration 22); no two cards on a results
+  page show the same picture any more (iteration 21): 43 listings moved onto a photo their
+  own site publishes, the rest are framed per listing; the results pages end at the footer
+  instead of 96px of empty page below it (iteration 20); a quote request now sends one
+  email: the listing's own address and every active admin when it has one, and the
+  operator's inbox always. The host has no Composer, so the SMTP client is written out by
+  hand; credentials sit outside the web root. Verified by sending from the host and
+  reading the inbox over IMAP, iteration 19.
   (previous: 2026-10-17 — anyone signed in
   can change their own password from `/account`, and `/admin` can create accounts instead of
   needing SSH and SQL. 69 admin API + 57 admin browser + 17 change-password checks locally,
@@ -97,6 +99,71 @@ very first browser run (the dialog simply stayed open) until the server was rest
 ---
 
 ## Run log
+
+### 2026-10-24 — iteration 22: the quote email looks like the site
+
+A quote request used to send one plain-text message — dashes, aligned labels, no logo — to
+the business, the operator and both admins. It reached the inbox and told nobody at a
+glance that it came from a real directory. It now sends **two** messages, both built from
+`deploy/public/api/mail-template.php`:
+
+- **The notification** (business + operator + admins, one envelope): the business's name
+  in a purple pill with its category and city, then *Who is asking*, *The party*, and what
+  the parent wrote, and a purple **Reply to …** button opening a message to the visitor.
+- **The receipt** (the parent): thanks, who has it, a link to that business's site, the
+  answers as a checklist to catch a typo, and the promise that nothing is payable or
+  confirmed until they agree a price. Its `Reply-To` is the operator inbox, not the
+  business — a parent who replies to a receipt did not mean to write to a stranger.
+
+They are separate sends because one message to everyone would show every parent the
+admins' addresses. The staging is `multipart/alternative`, so the plain-text part is still
+there for a watch or a screen reader.
+
+**Why the layout is written this way.** No email client understands `oklch()` or CSS
+variables, so the palette is converted once from `src/styles.css` into hex literals; the
+page is a table, 600px wide with a 100% fallback, because Outlook lays out with the Word
+engine and Gmail drops `<style>` blocks; spacing is inline padding rather than margins.
+The only remote asset is the site's own `/logo.png`.
+
+```
+php -l on mailer.php, mail-template.php, send-test-mail.php (server)   no syntax errors
+php tools/send-test-mail.php mailer@… quote                          both SENT (2 queue ids)
+IMAP read back of the two delivered messages                          multipart, 2 parts, HTML ok
+POST /api/quote-requests (live, real route)                           201 in 1217 ms, id 22
+IMAP read back of that request's two messages                          both arrived, both parts
+```
+
+**What was actually checked in the delivered mail**, not in the generator: the HTML part
+decoded to 8,552 bytes starting with a doctype, the en dash in `$400 – $700` and an `é` in
+the message both survived as UTF-8 (the `?` seen in a console was the Windows codepage,
+not the message), the category slug `star-wars` reached the inbox as **Star Wars**, a name
+already ending in a full stop did not produce "Co..", and the visitor's own text was
+escaped rather than interpreted as markup. The MIME assembly was checked separately: two
+parts, a closing boundary, CRLF throughout with no bare LF, and no line over 76 characters.
+
+**No email HTML is trusted.** Every value that comes from a visitor or a listing — the
+parent's words, their name, the business's name — goes through `htmlspecialchars` before
+it reaches the template, and the `mailto:` on the reply button is `rawurlencode`d. The
+subject and the display name were already base64-encoded by the SMTP layer when they are
+not plain ASCII.
+
+The one thing left unproven: delivery to a **business's** address. Every listing with an
+email points at a real third party, and sending a synthetic request to one would be a side
+effect nobody asked for, so the vendor branch is proven by the same send with the business
+fixture (which is also the address path) rather than by mailing
+`theprincesspartyco.com`. The probe row (`source = 'probe'`) was deleted afterwards by a
+statement matching its id, source and address together: `quote_requests` went 11 → 10 and
+no real row was touched.
+
+| Check | Result |
+| --- | --- |
+| `php -l` on the three changed files, on the host | no syntax errors |
+| The two messages send from the server | 2 accepted, queue ids returned |
+| They arrive, and both MIME parts survive | multipart, 2 parts, valid UTF-8 |
+| The parent's receipt is a second, separate send | yes — recipients disjoint |
+| A real `POST /api/quote-requests` produces both | 201, two messages arrived |
+| Nothing outside the request breaks if mail fails | `[quote-mail]` / `[quote-receipt]` logged, still 201 |
+| Probe row removed, real rows untouched | 11 → 10 |
 
 ### 2026-10-24 — iteration 21: no two cards show the same picture
 
