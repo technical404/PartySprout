@@ -911,7 +911,8 @@ function adminUpdateListing(listingId, data) {
   db.prepare(
     `UPDATE listings
         SET name = ?, category_id = ?, city_id = ?, state_id = ?, city_text = ?,
-            website = ?, phone = ?, email = ?, price_from = ?, description = ?, policies = ?,
+            website = ?, image_url = ?, phone = ?, email = ?, price_from = ?,
+            description = ?, policies = ?,
             is_featured = ?, pin_rank = ?, status = ?, review_note = ?
       WHERE id = ?`,
   ).run(
@@ -921,6 +922,7 @@ function adminUpdateListing(listingId, data) {
     data.stateId ?? null,
     nullableText(data.cityText),
     nullableText(data.website),
+    nullableText(data.imageUrl),
     nullableText(data.phone),
     nullableText(data.email),
     data.priceFrom ?? null,

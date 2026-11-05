@@ -669,6 +669,13 @@ async function handleAdmin(req, res, pathname, url) {
     if (text(body.website) && !website)
       errors.website = "Enter a full web address, like https://example.com.";
 
+    // The card only renders an https picture (http would be blocked as mixed
+    // content), so anything else is refused here rather than saved and silently
+    // ignored by the page that shows it.
+    const imageUrl = text(body.imageUrl) ? safeUrl(body.imageUrl) : null;
+    if (text(body.imageUrl) && !(imageUrl && imageUrl.startsWith("https://")))
+      errors.imageUrl = "Enter a full https:// address for the picture.";
+
     const email = text(body.email);
     if (email && !EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
     else if (email.length > MAX_FIELD) errors.email = "Email is too long.";
@@ -713,6 +720,7 @@ async function handleAdmin(req, res, pathname, url) {
       stateId: matchedCity ? matchedCity.state_id : null,
       cityText: matchedCity ? null : typedCity,
       website,
+      imageUrl: imageUrl ?? null,
       phone: normalisePhone(body.phone),
       email: email || null,
       priceFrom: priceFrom ?? null,

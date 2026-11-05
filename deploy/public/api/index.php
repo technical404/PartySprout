@@ -1596,6 +1596,15 @@ function handle_admin(mysqli $db, string $method, string $path): bool
             $errors['website'] = 'Enter a full web address, like https://example.com.';
         }
 
+        // The card only renders an https picture (http would be blocked as mixed
+        // content), so anything else is refused here rather than saved and silently
+        // ignored by the page that shows it.
+        $imageText = text($body['imageUrl'] ?? '');
+        $imageUrl = $imageText === '' ? null : safe_url($imageText);
+        if ($imageText !== '' && ($imageUrl === null || strpos($imageUrl, 'https://') !== 0)) {
+            $errors['imageUrl'] = 'Enter a full https:// address for the picture.';
+        }
+
         $email = text($body['email'] ?? '');
         if ($email !== '' && !preg_match(EMAIL_PATTERN, $email)) {
             $errors['email'] = 'Enter a valid email address.';
@@ -1660,8 +1669,9 @@ function handle_admin(mysqli $db, string $method, string $path): bool
             $db,
             'UPDATE listings
                 SET name = ?, category_id = ?, city_id = ?, state_id = ?, city_text = ?,
-                    website = ?, phone = ?, email = ?, price_from = ?, description = ?, policies = ?,
-                    is_featured = ?, pin_rank = ?, status = ?, review_note = ?
+                    website = ?, image_url = ?, phone = ?, email = ?, price_from = ?,
+                    description = ?, policies = ?, is_featured = ?, pin_rank = ?, status = ?,
+                    review_note = ?
               WHERE id = ?',
             [
                 $name,
@@ -1670,6 +1680,7 @@ function handle_admin(mysqli $db, string $method, string $path): bool
                 $matchedCity === null ? null : (int) $matchedCity['state_id'],
                 $matchedCity === null ? nullable_text($typedCity) : null,
                 $website,
+                $imageUrl,
                 phone_or_null($body['phone'] ?? ''),
                 $email === '' ? null : $email,
                 $priceFrom === null ? null : $priceFrom,

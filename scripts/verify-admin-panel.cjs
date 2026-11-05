@@ -176,12 +176,42 @@ function cleanup() {
 
   /* --- listing validation ---------------------------------------------- */
 
-  const badEdit = await asAdmin(`/api/admin/listings/${listing.id}`, patch({ name: 'x', categorySlug: 'no-such-category', status: 'nope', website: 'javascript:alert(1)', email: 'not-an-email', phone: 'hello', priceFrom: 'lots', pinRank: 'abc' }));
+  const badEdit = await asAdmin(`/api/admin/listings/${listing.id}`, patch({ name: 'x', categorySlug: 'no-such-category', status: 'nope', website: 'javascript:alert(1)', imageUrl: 'http://example.com/party.jpg', email: 'not-an-email', phone: 'hello', priceFrom: 'lots', pinRank: 'abc' }));
   check('a bad edit is refused with per-field errors', badEdit.status === 422, badEdit.body);
   check(
     'every bad field is reported',
-    ['name', 'categorySlug', 'status', 'website', 'email', 'phone', 'priceFrom', 'pinRank'].every((key) => badEdit.body.fields[key]),
+    ['name', 'categorySlug', 'status', 'website', 'imageUrl', 'email', 'phone', 'priceFrom', 'pinRank'].every((key) => badEdit.body.fields[key]),
     badEdit.body.fields,
+  );
+  check(
+    'an http picture is refused, not saved',
+    /https/.test(badEdit.body.fields.imageUrl ?? '') &&
+      queries.getListingById(listing.id).image_url !== 'http://example.com/party.jpg',
+    badEdit.body.fields,
+  );
+  const noPicture = await asAdmin(
+    `/api/admin/listings/${listing.id}`,
+    patch({
+      name: `Verify Listing ${stamp} (edited)`,
+      categorySlug: filtered.body.items[0].category_slug,
+      cityText: city.name,
+      website: 'https://example.com/edited',
+      imageUrl: '',
+      phone: '555 987 6543',
+      email: `edited-${stamp}@example.test`,
+      priceFrom: '495',
+      description: 'Edited by the verification script.',
+      policies: 'Deposit required.',
+      status: 'active',
+      isFeatured: true,
+      pinRank: 7,
+      reviewNote: 'Looks good.',
+    }),
+  );
+  check(
+    'a blank picture clears it, so the card falls back to the category art',
+    noPicture.status === 200 && noPicture.body.listing.image_url === null,
+    noPicture.body.listing && noPicture.body.listing.image_url,
   );
 
   /* --- listing edit ---------------------------------------------------- */
@@ -193,6 +223,7 @@ function cleanup() {
       categorySlug: filtered.body.items[0].category_slug,
       cityText: city.name,
       website: 'https://example.com/edited',
+      imageUrl: `https://example.com/photo-${stamp}.jpg`,
       phone: '555 987 6543',
       email: `edited-${stamp}@example.test`,
       priceFrom: '495',
@@ -214,7 +245,8 @@ function cleanup() {
       after.pin_rank === 7 &&
       after.price_from === 495 &&
       after.policies === 'Deposit required.' &&
-      after.website === 'https://example.com/edited',
+      after.website === 'https://example.com/edited' &&
+      after.image_url === `https://example.com/photo-${stamp}.jpg`,
     after,
   );
   check(

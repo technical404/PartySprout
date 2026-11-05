@@ -111,6 +111,8 @@ export type AdminListingInput = {
   categorySlug: string;
   cityText: string;
   website: string;
+  /** The card picture. Blank falls back to the category's own artwork. */
+  imageUrl: string;
   phone: string;
   email: string;
   priceFrom: string;

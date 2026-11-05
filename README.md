@@ -156,8 +156,10 @@ AGENTS.md                    project note for agents
   quote requests, last 7 days, favourites).
 - Review queue of pending submissions: approve or reject with an optional note.
 - **Listings**: search, filter by status and category, sort six ways, page 25 at a time.
-  Edit any field a vendor can (plus pin rank and featured), flip featured from the row,
-  and delete a listing outright.
+  Edit any field a vendor can (plus the card picture, pin rank and featured), flip featured
+  from the row, and delete a listing outright. The picture field takes an `https://` address
+  and previews it, so a typo is visible before it reaches a parent's screen; leaving it blank
+  falls back to the category artwork.
 - **Accounts**: the same search/filter/paging over every account, and **New account** creates
   one — any role, including another admin — so adding an operator no longer means SSH and SQL.
   Change a role or suspension straight from the row, edit name and phone, set a new password
@@ -252,7 +254,7 @@ Every route exists identically in `Database/api-handler.cjs` (Node) and
 | GET | `/api/admin/submissions` | admin | pending review queue |
 | GET | `/api/admin/listings` | admin | search/filter/sort/page every listing (`q`, `status`, `category`, `featured`, `sort`, `page`, `pageSize` ≤ 100) |
 | GET | `/api/admin/listings/:id` | admin | one listing with the columns the edit form needs |
-| PATCH | `/api/admin/listings/:id` | admin | edit any field, including pin rank and featured |
+| PATCH | `/api/admin/listings/:id` | admin | edit any field, including the card picture (`imageUrl`, https only), pin rank and featured |
 | DELETE | `/api/admin/listings/:id` | admin | remove a listing (its quote requests stay, unattached) |
 | GET | `/api/admin/users` | admin | search/filter/page every account (`q`, `role`, `status`) |
 | POST | `/api/admin/users` | admin | create an account (`email`, `name`, `role`, `password`, optional `phone`) and return the new row |

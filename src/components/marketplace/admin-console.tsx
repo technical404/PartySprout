@@ -277,6 +277,7 @@ function toInput(listing: AdminListing): AdminListingInput {
     categorySlug: listing.category_slug,
     cityText: listing.city_name ?? "",
     website: listing.website ?? "",
+    imageUrl: listing.image_url ?? "",
     phone: listing.phone ?? "",
     email: listing.email ?? "",
     priceFrom: listing.price_from === null ? "" : String(listing.price_from),
@@ -602,6 +603,9 @@ function ListingDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
+  // A URL that does not load would look fine in the field and broken on the card,
+  // so the preview says so instead of showing an empty box.
+  const [pictureBroken, setPictureBroken] = useState(false);
 
   function set<K extends keyof AdminListingInput>(key: K, value: AdminListingInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -758,6 +762,45 @@ function ListingDialog({
               onCheckedChange={(checked) => set("isFeatured", checked)}
             />
           </div>
+        </div>
+
+        <Field
+          label="Picture"
+          hint="the photo on the business's card — https:// address, blank uses the category picture"
+        >
+          <Input
+            className={CONTROL_CLASS}
+            value={form.imageUrl}
+            placeholder="https://example.com/party-photo.jpg"
+            onChange={(event) => {
+              set("imageUrl", event.target.value);
+              setPictureBroken(false);
+            }}
+            aria-invalid={Boolean(fields["imageUrl"])}
+          />
+          {fields["imageUrl"] && (
+            <span className="text-xs font-normal text-destructive">{fields["imageUrl"]}</span>
+          )}
+        </Field>
+        <div className="flex items-center gap-4 rounded-xl border p-4">
+          <div className="size-24 shrink-0 overflow-hidden rounded-lg border bg-muted">
+            {form.imageUrl.trim() && !pictureBroken ? (
+              <img
+                src={form.imageUrl.trim()}
+                alt=""
+                className="size-full object-cover"
+                onError={() => setPictureBroken(true)}
+              />
+            ) : (
+              <span className="flex size-full items-center justify-center px-2 text-center text-xs text-muted-foreground">
+                {form.imageUrl.trim() ? "That address does not load" : "Category picture"}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            What parents see first. Leave it blank and the card shows the artwork for this
+            business's category instead.
+          </p>
         </div>
 
         <Field label="Description" hint="what the business offers">

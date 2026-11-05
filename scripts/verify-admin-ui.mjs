@@ -154,7 +154,7 @@ try {
   await page.waitForTimeout(800);
   const dialog = page.getByRole('dialog');
   check('the edit dialog opens', await dialog.isVisible());
-  const nameField = dialog.locator('input').first();
+  const nameField = dialog.getByLabel('Business name');
   const originalName = await nameField.inputValue();
   check('the edit dialog is prefilled', originalName.length > 2, originalName);
   await nameField.fill('');
@@ -162,6 +162,24 @@ try {
   await page.waitForTimeout(1200);
   check('an empty name is refused', /Please enter the business name/.test(await dialog.innerText()), (await dialog.innerText()).slice(-120));
   await nameField.fill(originalName);
+
+  // The picture is previewed but not saved here: typing and clearing it changes
+  // nothing on the server, and the dialog is cancelled two checks later.
+  const pictureField = dialog.getByLabel(/^Picture/);
+  check('the edit dialog offers the card picture', await pictureField.isVisible());
+  const originalPicture = await pictureField.inputValue();
+  check('the picture field is prefilled with the stored address', originalPicture.startsWith('https://') || originalPicture === '', originalPicture);
+  await pictureField.fill(`${BASE}/logo.png`);
+  await page.waitForTimeout(900);
+  const preview = dialog.locator('img').first();
+  const previewWidth = (await preview.count()) === 1 ? await preview.evaluate((img) => img.naturalWidth) : 0;
+  check('the picture field previews the image it is given', previewWidth > 0, `naturalWidth=${previewWidth}`);
+  await pictureField.fill('');
+  await page.waitForTimeout(500);
+  check('a blank picture says the category art will be used', /Category picture/.test(await dialog.innerText()));
+  await pictureField.fill(originalPicture);
+  await page.waitForTimeout(300);
+
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await page.waitForTimeout(600);
   check('the edit dialog closes on cancel', (await dialog.count()) === 0);

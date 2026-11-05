@@ -65,8 +65,8 @@ python .ps_pinned_prod_apply.py                   # live: write the pinned logos
 python .ps_pinned_prod.py                         # live: read those three rows, change nothing
 node scripts\verify-change-password.cjs           # 17 checks on POST /api/auth/password (needs :8080 up)
 node scripts\verify-login-throttle.cjs             # 7 checks on the sign-in lockout (~35s, nearly all waiting)
-node scripts\verify-admin-panel.cjs               # 69 admin API checks over HTTP (needs :8080 up)
-node scripts\verify-admin-ui.mjs                  # 57 browser checks on the console (creates and removes its own admin)
+node scripts\verify-admin-panel.cjs               # 72 admin API checks over HTTP (needs :8080 up)
+node scripts\verify-admin-ui.mjs                  # 69 browser checks on the console (creates and removes its own admin)
 
 # PHP API against real MySQL (throwaway MariaDB + portable PHP, see below)
 .ohmyagent\mysql_start.cmd           # MariaDB on 127.0.0.1:3306 (data in %TEMP%\psmysql)
@@ -99,6 +99,55 @@ very first browser run (the dialog simply stayed open) until the server was rest
 ---
 
 ## Run log
+
+### 2026-10-24 — iteration 24: the admin can change a business's picture
+
+A business card is only as good as its photo, and the console could edit every column of a
+listing except the one parents look at. `image_url` was written by
+`Database/fetch-images.cjs` and by hand-run SQL — never by an admin who spotted a wrong or
+missing picture.
+
+The edit dialog now has a **Picture** field, prefilled with the stored address, with a
+live 96px preview beside it. Type an address and the photo appears; clear it and the box
+says *Category picture*, which is what the card will fall back to. An address that does
+not load says so instead of leaving a blank square, so a typo is caught before a parent
+sees it. Both backends refuse anything that is not `https://` — the cards only render
+https pictures (`safeImageUrl` in `src/lib/marketplace-data.ts`), so an `http://` value
+would be stored and then silently ignored. Blank is allowed and stored as NULL: the card
+falls back to the category artwork.
+
+The row-level featured toggle sends the whole form back, so it now carries `imageUrl` too;
+the field was added to `toInput`, which is the single place the dialog and that toggle both
+read from.
+
+```
+node scripts/verify-admin-panel.cjs       ->  72/72  (+3: the edit stores imageUrl; an http
+                                                    picture is a 422 and is not saved; a blank
+                                                    picture clears the column to NULL)
+node scripts/verify-admin-ui.mjs          ->  69/69  (+4 in a real browser: the dialog offers
+                                                    the picture, it is prefilled with the stored
+                                                    address, typing a URL loads a preview
+                                                    (naturalWidth > 0), and clearing it says
+                                                    the category art will be used)
+npx tsc --noEmit                          ->  clean
+```
+
+The browser checks only type and clear the field; the dialog is cancelled without saving,
+so the run leaves no listing changed. Nothing was written to production data.
+
+Deploy: 82 assets uploaded, shell and index refreshed, 61 alias files re-pointed at the new
+`index-DtfPOpnb.js` / `styles-B3FrkznQ.css`, five root files md5-checked. This change also
+touches `deploy/public/api/index.php`, so the PHP API went up too: uploaded as
+`index.php.new`, `php -l` clean on the server, live file backed up to
+`~/ps-backups/api-index.php.20261105-214547`, moved into place, and the live
+`api/index.php` md5 (`a06dc9f6…`) matches the repository.
+
+Live, read-only: the deployed `assets/admin-BlCbk48R.js` was fetched and asserted to carry
+the picture placeholder, the *Category picture* / *That address does not load* states and
+the https hint, while `/api/listings` still answers and `/api/admin/quotes` still refuses
+an anonymous caller — **6/6, nothing written**. A signed-in PATCH against production was
+not run: it would edit a real business's picture, and the local API and browser suites
+already cover the same three outcomes (store, refuse http, clear to NULL).
 
 ### 2026-10-24 — iteration 22: the quote email looks like the site
 
@@ -466,7 +515,7 @@ labelled *Date*. Neither is in the current gate; both are worth repairing or del
 
 ---
 
-### 2026-10-24 — iteration 18: a quote request opens in full
+### 2026-10-24 — iteration 23: a quote request opens in full
 
 The **Quote requests** tab could show a request but not let you read one. Each row carried a
 summary — city and event type, date, head count, budget — and the details text, the ages and
