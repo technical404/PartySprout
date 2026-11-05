@@ -57,6 +57,25 @@ const cardPictures = (page) =>
 
 const signature = (card) => `${card.src}|${card.position}|${card.zoom}`;
 
+/**
+ * Waits until every card picture has either loaded or failed.
+ *
+ * A picture that fails is replaced by the category art, which moves the card onto a
+ * different file (and its own framing). Reading before that settles compares a card
+ * against itself mid-change, which says nothing about whether the *card* is stable.
+ */
+const settle = (page) =>
+  page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll("article.vendor-card img.vendor-image")].every(
+          (image) => image.complete,
+        ),
+      null,
+      { timeout: 15000 },
+    )
+    .catch(() => false);
+
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -72,7 +91,8 @@ const signature = (card) => `${card.src}|${card.position}|${card.zoom}`;
   for (const path of paths) {
     await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("article.vendor-card", { timeout: 30000 }).catch(() => false);
-    await page.waitForTimeout(1500);
+    await settle(page);
+    await page.waitForTimeout(600);
 
     const cards = await cardPictures(page);
     if (!cards.length) {
@@ -114,11 +134,13 @@ const signature = (card) => `${card.src}|${card.position}|${card.zoom}`;
   const sample = "/search?q=&location=";
   await page.goto(`${BASE}${sample}`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("article.vendor-card", { timeout: 30000 }).catch(() => false);
-  await page.waitForTimeout(1500);
+  await settle(page);
+  await page.waitForTimeout(600);
   const first = await cardPictures(page);
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForSelector("article.vendor-card", { timeout: 30000 }).catch(() => false);
-  await page.waitForTimeout(1500);
+  await settle(page);
+  await page.waitForTimeout(600);
   const second = await cardPictures(page);
   const stable =
     first.length === second.length &&

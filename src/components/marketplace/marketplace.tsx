@@ -58,6 +58,7 @@ import {
   fetchDirectorySummary,
   fetchListings,
   fetchStates,
+  imageVariantStyle,
   searchStateFromParams,
   searchStateToParams,
   type Category,
@@ -661,13 +662,28 @@ export function VendorLogo({ vendor, className }: { vendor: Vendor; className?: 
  * A card's picture is hot-linked from the business's own site, so it can 404, expire
  * or stop serving us at any time. When it does, the picture for its category takes
  * over rather than leaving a broken image on the card.
- */ export function imageFallback(fallback: string) {
+ * Swaps in the category picture when a listing's own one fails to load — a file the
+ * business later moved, hotlink protection, a lapsed domain.
+ *
+ * The replacement is framed with this listing's own variant when one is passed, because
+ * the category picture is the same file for every business in that category: unframed,
+ * two cards whose pictures both failed would look identical, which is exactly the
+ * duplication the framing exists to break up.
+ */
+export function imageFallback(
+  fallback: string,
+  variant?: { objectPosition: string; zoom: number },
+) {
   return (event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     // The flag stops a second failure (of the fallback itself) from looping.
     if (image.dataset["fellBack"]) return;
     image.dataset["fellBack"] = "1";
     image.src = fallback;
+    if (variant) {
+      image.style.objectPosition = variant.objectPosition;
+      image.style.setProperty("--variant-zoom", String(variant.zoom));
+    }
   };
 }
 
@@ -711,7 +727,7 @@ export function VendorCard({
       <div className="relative overflow-hidden">
         <img
           src={vendor.image}
-          onError={imageFallback(vendor.fallbackImage)}
+          onError={imageFallback(vendor.fallbackImage, imageVariantStyle(vendor.id))}
           alt=""
           loading="lazy"
           width={700}

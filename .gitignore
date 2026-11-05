@@ -51,3 +51,6 @@ deploy/mail-config.php
 *.njsproj
 *.sln
 *.sw?
+
+# Point-in-time dump of the live site, used only to generate an import file.
+Database/live-images.json
